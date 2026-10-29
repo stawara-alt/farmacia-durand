@@ -94,3 +94,4 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: .92rem; }
 .zone-head label { display: flex; gap: 6px; align-items: center; font-weight: 700; }
 .side .wordmark, .side .wordmark small, .side .wordmark i { color: #fff; }
 .login .wordmark { color: #046532; }
+.side .brand .logo { background: #fff; border-radius: 50%; padding: 2px; }

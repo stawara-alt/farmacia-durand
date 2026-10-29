@@ -84,7 +84,7 @@ function wordmarkHTML(s) {
 }
 
 function logoHTML(s) {
-  return `<span class="logo"><img src="${esc(s.logo || '/img/logo-durand.svg')}" alt=""></span>${wordmarkHTML(s)}`;
+  return `<span class="logo"><img src="${esc(s.logo || '/img/logo-durand.png')}" alt=""></span>${wordmarkHTML(s)}`;
 }
 
 const STATUS_LABELS = {

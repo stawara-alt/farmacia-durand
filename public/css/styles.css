@@ -1,8 +1,8 @@
 :root {
-  --primary: #0f9d76;
-  --primary-dark: #0b7a5c;
-  --primary-soft: #e6f6f1;
-  --accent: #ff6f61;
+  --primary: #038b37;
+  --primary-dark: #046532;
+  --primary-soft: #e6f4ea;
+  --accent: #e4002b;
   --ink: #1f2a27;
   --muted: #5b6b66;
   --line: #e3e8e6;
@@ -309,7 +309,7 @@ h1, h2, h3 { font-weight: 800; }
   .brand-card .big strong { font-size: 3.6rem; }
   .service .ico { width: 76px; height: 76px; }
 }
-.hero-art .brand-card img.emblem { position: static; inset: auto; width: 92px; height: auto; border-radius: 0; }
+.hero-art .brand-card img.emblem { position: static; inset: auto; width: 92px; height: auto; border-radius: 50%; }
 .hero-art .brand-card img.photo { border-radius: 0; inset: 0; width: 100%; height: 100%; }
 /* etiquetas flotantes por fuera de la placa, sin tapar el logo ni el nombre */
 .hero-art .chip.a { top: -18px; left: auto; right: -5%; }
@@ -318,3 +318,6 @@ h1, h2, h3 { font-weight: 800; }
   .hero-art .chip.a { right: 8px; }
   .hero-art .chip.b { left: 8px; }
 }
+/* logo original: emblema sobre círculo blanco cuando el fondo no es blanco */
+.brand .logo img { border-radius: 50%; }
+.brand-card .emblem { background: #fff; border-radius: 50%; padding: 6px; box-shadow: 0 6px 18px rgba(0,0,0,.18); }

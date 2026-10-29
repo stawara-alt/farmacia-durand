@@ -67,7 +67,7 @@ function renderInfo() {
   // placa verde como las de sus posteos; si hay foto de portada, la usa de fondo
   $('#hero-art').innerHTML = `<div class="brand-card brand-green ${S.hero_image ? 'has-photo' : ''}">
       ${S.hero_image ? `<img class="photo" src="${esc(S.hero_image)}" alt="">` : ''}
-      <img class="emblem" src="/img/logo-durand-white.svg" alt="">
+      <img class="emblem" src="${esc(S.logo || '/img/logo-durand.png')}" alt="">
       ${years > 0 ? `<div class="big"><span>¡Celebramos</span><strong>${years} años!</strong><em>cuidando la salud del barrio</em></div>` : `<div class="big"><strong>${esc(S.slogan)}</strong></div>`}
       ${wordmarkHTML(S)}
     </div>
