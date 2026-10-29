@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Farmacia Durand">
+  <!-- versión para fondo verde -->
+  <circle cx="50" cy="50" r="40" fill="#fff"/>
+  <path d="M50 4 A46 46 0 0 1 50 96" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+  <path d="M27 31 h12 v13 h13 v12 h-13 v13 h-12 v-13 h-13 v-12 h13 z" fill="#029a32" stroke="#fff" stroke-width="3.5" stroke-linejoin="round"/>
+  <path d="M55 26 h6 a24 24 0 0 1 0 48 h-6 z" fill="#029a32" stroke="#fff" stroke-width="3.5" stroke-linejoin="round"/>
+</svg>

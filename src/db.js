@@ -210,20 +210,22 @@ if (!productCols.includes('barcode')) db.exec("ALTER TABLE products ADD COLUMN b
 
 const DEFAULT_SETTINGS = {
   name: 'Farmacia Durand',
-  slogan: 'Cuidamos tu salud, cerca tuyo',
-  about: 'Somos una farmacia familiar con más de 20 años acompañando a nuestra comunidad. Atención personalizada, profesionales farmacéuticos y los mejores productos de salud, belleza y bienestar.',
-  address: 'Av. Díaz Vélez 5101',
+  slogan: 'Cuidamos tu salud desde 1916',
+  about: 'Desde 1916 acompañamos a nuestro barrio con atención cercana y profesional. Medicamentos, vacunas, obras sociales y prepagas, dermocosmética, perfumería y maquillaje, con el asesoramiento de siempre.',
+  address: 'Av. Díaz Vélez 5115',
   city: 'C1405 CABA, Buenos Aires',
   phone: '+54 11 0000-0000',
   whatsapp: '5491100000000',
   email: 'contacto@farmaciadurand.com',
   hours: 'Lunes a Viernes: 8:00 a 21:00\nSábados: 9:00 a 14:00\nDomingos y feriados: según turno',
-  services: 'Atención farmacéutica personalizada|Toma de presión arterial|Vacunación|Perfumería y dermocosmética|Obras sociales y prepagas|Envíos a domicilio',
+  services: 'Vacunación|Obras sociales y prepagas|Maquillaje|Cosmética y perfumería|Atención farmacéutica|Envíos a domicilio',
+  since_year: '1916',
+  linktree: 'https://linktr.ee/farmacia.durand',
   instagram: 'https://www.instagram.com/farmaciadurand/',
   facebook: 'https://www.facebook.com/FarmaciaDurand/',
   tiktok: '',
-  color_primary: '#0f9d76',
-  color_accent: '#ff6f61',
+  color_primary: '#038b37',   // verde de Farmacia Durand (Instagram)
+  color_accent: '#e4002b',    // rojo para ofertas y descuentos
   logo: '',
   hero_image: '',
   bank_holder: 'Farmacia Durand',

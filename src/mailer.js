@@ -29,12 +29,19 @@ function baseUrl() {
   return (process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, '');
 }
 
+// "Farmacia DURAND / Desde 1916" como en el logo (con fuentes seguras para email)
+function wordmark(s) {
+  const words = String(s.name || '').trim().split(/\s+/);
+  const big = words.length > 1 ? words.pop() : words[0] || '';
+  return `<span style="font-size:13px">${esc(words.join(' '))}</span><br><span style="font-size:26px;font-weight:bold;letter-spacing:1px">${esc(big.toUpperCase())}</span>${s.since_year ? `<br><i style="font-size:11px">Desde ${esc(s.since_year)}</i>` : ''}`;
+}
+
 function layout(s, inner) {
   const c = s.color_primary || '#0f9d76';
   return `<!doctype html><html><body style="margin:0;background:#f4f6f5;font-family:Arial,Helvetica,sans-serif;color:#1f2a27">
   <table width="100%" cellpadding="0" cellspacing="0" style="padding:24px 0"><tr><td align="center">
   <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#fff;border-radius:14px;overflow:hidden">
-    <tr><td style="background:${c};padding:22px 28px;color:#fff;font-size:22px;font-weight:bold">✚ ${esc(s.name)}</td></tr>
+    <tr><td style="background:${c};padding:18px 28px;color:#fff;font-family:Georgia,'Times New Roman',serif">${wordmark(s)}</td></tr>
     <tr><td style="padding:28px">${inner}</td></tr>
     <tr><td style="background:#f0f3f2;padding:18px 28px;font-size:12px;color:#5b6b66">
       ${esc(s.address)} · ${esc(s.city)}<br>Tel: ${esc(s.phone)} · ${esc(s.email)}

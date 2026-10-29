@@ -1,6 +1,6 @@
 # Farmacia Durand — Tienda online + panel de gestión
 
-Sitio web completo para la farmacia: catálogo con fotos, carrito, compra con **transferencia o QR**, seguimiento del pedido por link, avisos por **email** en cada cambio de estado, y un **panel de administración** con pedidos, productos/stock, costos con IVA, importación desde **Mercado Libre** y **estadísticas** mensuales.
+Sitio web completo para la farmacia (con la identidad visual de su Instagram: verde #038B37, logo cruz + D, "Desde 1916"): catálogo con fotos, carrito, compra con **transferencia o QR**, seguimiento del pedido por link, avisos por **email** en cada cambio de estado, y un **panel de administración** con pedidos, productos/stock, costos con IVA, importación desde **Mercado Libre** y **estadísticas** mensuales.
 
 ## Puesta en marcha
 

@@ -29,6 +29,11 @@ const ICONS = {
   fb: '<path d="M15 3h-2.5A4.5 4.5 0 0 0 8 7.5V10H5.5v4H8v7h4v-7h3l.5-4H12V7.8c0-.5.4-.8.8-.8H15z"/>',
   tiktok: '<path d="M14 3v11.5a3.5 3.5 0 1 1-3.5-3.5M14 3c.5 2.8 2.2 4.5 5 5"/>',
   check: '<path d="m5 12 5 5L20 7"/>',
+  gift: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v9h14v-9M12 8v13M12 8S10.5 3 8 3.5 6.5 8 12 8zm0 0s1.5-5 4-4.5S17.5 8 12 8z"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14a5 5 0 0 1 5.5 5"/>',
+  lipstick: '<path d="M8 21v-8h8v8zM9.5 13V7l5-4v10"/>',
+  heartplus: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/><path d="M12 9.5v6M9 12.5h6"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
   upload: '<path d="M12 16V4M7 9l5-5 5 5M4 20h16"/>',
   copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/>',
   store: '<path d="M4 10v10h16V10M3 4h18l-1 6H4zM9 20v-6h6v6"/>',
@@ -71,8 +76,15 @@ function applyTheme(s) {
   if (s.name) document.title = document.title.replace('Farmacia', s.name);
 }
 
+// nombre al estilo del logo de la farmacia: "Farmacia" chico, "DURAND" grande, "Desde 1916"
+function wordmarkHTML(s) {
+  const words = String(s.name || '').trim().split(/\s+/);
+  const big = words.length > 1 ? words.pop() : words[0] || '';
+  return `<span class="wordmark">${words.length ? `<small>${esc(words.join(' '))}</small>` : ''}<b>${esc(big.toUpperCase())}</b>${s.since_year ? `<i>Desde ${esc(s.since_year)}</i>` : ''}</span>`;
+}
+
 function logoHTML(s) {
-  return s.logo ? `<span class="logo"><img src="${esc(s.logo)}" alt=""></span>` : '<span class="logo">✚</span>';
+  return `<span class="logo"><img src="${esc(s.logo || '/img/logo-durand.svg')}" alt=""></span>${wordmarkHTML(s)}`;
 }
 
 const STATUS_LABELS = {

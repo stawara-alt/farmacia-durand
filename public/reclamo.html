@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Reclamos y devoluciones | Farmacia</title>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Nunito:wght@400;600;700;800&family=Roboto+Slab:wght@400;700&family=Libre+Baskerville:ital@1&display=swap">
   <link rel="stylesheet" href="/css/styles.css">
   <style>
     .claim-grid { display: grid; grid-template-columns: 1.4fr .9fr; gap: 20px; align-items: start; }
@@ -12,7 +12,7 @@
     .photo-prev { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
     .photo-prev img { width: 72px; height: 72px; object-fit: cover; border-radius: 10px; border: 1.5px solid var(--line); }
     .wa-card { background: #e9fbf0; border-radius: 22px; padding: 24px; }
-    .wa-card .big { font-family: Poppins, sans-serif; font-size: 1.4rem; font-weight: 700; margin: 6px 0 14px; }
+    .wa-card .big { font-family: Montserrat, sans-serif; font-size: 1.4rem; font-weight: 700; margin: 6px 0 14px; }
     .regret-note { background: #fff7e6; border-radius: 12px; padding: 12px 14px; font-size: .92rem; margin-bottom: 14px; }
     @media (max-width: 800px) { .claim-grid, .reasons { grid-template-columns: 1fr; } }
   </style>
@@ -108,7 +108,7 @@
       S = await api('/api/settings');
       applyTheme(S);
       document.title = `Reclamos y devoluciones | ${S.name}`;
-      $('#brand').innerHTML = `${logoHTML(S)}<span>${esc(S.name)}</span>`;
+      $('#brand').innerHTML = `${logoHTML(S)}`;
       const owner = S.owner_phone || S.whatsapp;
       $('#wa-card').innerHTML = `<b>¿No tenés el código o preferís hablar?</b>
         <p class="muted" style="margin:6px 0 0">Escribinos y lo resolvemos juntos.</p>

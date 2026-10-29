@@ -29,7 +29,7 @@ async function showApp() {
   $('#shell').classList.remove('hidden');
   [S, PC] = await Promise.all([api('/api/admin/settings'), api('/api/admin/page-cost')]);
   applyTheme(S);
-  $('#a-brand').innerHTML = `${logoHTML(S)}<span>${esc(S.name)}</span>`;
+  $('#a-brand').innerHTML = `${logoHTML(S)}`;
   $$('#side-nav a').forEach((a) => (a.onclick = () => { location.hash = a.dataset.tab; $('#side').classList.remove('open'); }));
   $('#side-toggle').onclick = () => $('#side').classList.toggle('open');
   $('#logout').onclick = async () => { await api('/api/admin/logout', { method: 'POST' }); location.reload(); };

@@ -15,7 +15,7 @@
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body { margin: 0; font-family: 'Nunito', system-ui, sans-serif; color: var(--ink); background: var(--bg); line-height: 1.55; }
-h1, h2, h3, h4 { font-family: 'Poppins', 'Nunito', sans-serif; line-height: 1.2; margin: 0 0 .5em; }
+h1, h2, h3, h4 { font-family: 'Montserrat', 'Nunito', sans-serif; line-height: 1.2; margin: 0 0 .5em; }
 a { color: var(--primary); }
 img { max-width: 100%; display: block; }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -45,7 +45,7 @@ svg.i { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-widt
 .topbar a { color: #fff; text-decoration: none; }
 header.site { position: sticky; top: 0; z-index: 40; background: rgba(255,255,255,.92); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
 header.site .container { display: flex; align-items: center; gap: 18px; height: 72px; }
-.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); font-family: Poppins, sans-serif; font-weight: 700; font-size: 1.2rem; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); font-family: Montserrat, sans-serif; font-weight: 700; font-size: 1.2rem; }
 .brand .logo { width: 44px; height: 44px; border-radius: 14px; background: var(--primary); color: #fff; display: grid; place-items: center; font-size: 26px; overflow: hidden; }
 .brand .logo img { width: 100%; height: 100%; object-fit: cover; }
 nav.main { display: flex; gap: 4px; margin-left: auto; }
@@ -102,7 +102,7 @@ select.sort { width: auto; border: 1.5px solid var(--line); border-radius: 999px
 .card .brand-name { color: var(--muted); font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .card h3 { font-size: 1rem; font-family: Nunito, sans-serif; font-weight: 700; margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .card .row { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 10px; }
-.price { font-family: Poppins, sans-serif; font-weight: 700; font-size: 1.2rem; }
+.price { font-family: Montserrat, sans-serif; font-weight: 700; font-size: 1.2rem; }
 .add-btn { width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--primary); color: #fff; cursor: pointer; display: grid; place-items: center; }
 .add-btn:disabled { background: #c9d2cf; }
 .empty { text-align: center; padding: 50px 10px; color: var(--muted); }
@@ -188,7 +188,7 @@ footer.site .copy { border-top: 1px solid rgba(255,255,255,.12); margin-top: 28p
 .cart-item .qty button { width: 30px; height: 30px; font-size: 1rem; }
 .drawer footer { padding: 18px 20px; border-top: 1px solid var(--line); display: grid; gap: 10px; }
 .sum-row { display: flex; justify-content: space-between; }
-.sum-row.total { font-weight: 800; font-size: 1.2rem; font-family: Poppins, sans-serif; }
+.sum-row.total { font-weight: 800; font-size: 1.2rem; font-family: Montserrat, sans-serif; }
 .ship-hint { background: var(--primary-soft); color: var(--primary-dark); border-radius: 12px; padding: 10px 12px; font-size: .88rem; font-weight: 700; }
 
 .options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -249,7 +249,7 @@ footer.site .copy { border-top: 1px solid rgba(255,255,255,.12); margin-top: 28p
 .promos { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; }
 .promo { background: #fff; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); display: flex; flex-direction: column; }
 .promo img { width: 100%; aspect-ratio: 16 / 7; object-fit: cover; }
-.promo-art { aspect-ratio: 16 / 7; display: grid; place-items: center; background: linear-gradient(120deg, var(--accent), color-mix(in srgb, var(--accent) 55%, var(--primary))); color: #fff; font-family: Poppins, sans-serif; font-size: 2.6rem; font-weight: 700; padding: 10px; text-align: center; }
+.promo-art { aspect-ratio: 16 / 7; display: grid; place-items: center; background: linear-gradient(120deg, var(--accent), color-mix(in srgb, var(--accent) 55%, var(--primary))); color: #fff; font-family: Montserrat, sans-serif; font-size: 2.6rem; font-weight: 700; padding: 10px; text-align: center; }
 .promo-body { padding: 18px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
 .promo-body h3 { margin: 0; }
 .promo-body p { margin: 0; }
@@ -263,3 +263,58 @@ footer.site .cols { grid-template-columns: 1.2fr 1fr 1fr 1.2fr; }
 @media (max-width: 900px) { footer.site .cols { grid-template-columns: 1fr; } }
 .legal-links { display: flex; gap: 16px; flex-wrap: wrap; }
 footer.site a.regret { color: #fff; font-weight: 800; text-decoration: underline; }
+
+/* ---------- identidad Farmacia Durand (tomada de su Instagram) ---------- */
+.brand { gap: 10px; }
+.brand .logo { width: 48px; height: 48px; background: none; border-radius: 0; }
+.brand .logo img { object-fit: contain; }
+.wordmark { display: flex; flex-direction: column; line-height: 1; color: #046532; font-family: 'Roboto Slab', Georgia, serif; }
+.wordmark small { font-size: .72rem; font-weight: 400; letter-spacing: .02em; }
+.wordmark b { font-size: 1.35rem; font-weight: 700; letter-spacing: .01em; }
+.wordmark i { font-family: 'Libre Baskerville', Georgia, serif; font-size: .62rem; align-self: flex-end; margin-top: 1px; }
+.section-head h2 { text-transform: uppercase; font-weight: 900; letter-spacing: -.01em; }
+h1, h2, h3 { font-weight: 800; }
+
+/* fondo verde con rayas suaves, como las placas de sus posteos */
+.brand-green { background-color: var(--primary); background-image: repeating-linear-gradient(115deg, rgba(255,255,255,.05) 0 18px, transparent 18px 46px); color: #fff; }
+.brand-card { position: relative; border-radius: 28px; padding: 34px 30px; aspect-ratio: 4 / 5; max-width: 400px; width: 100%; justify-self: center; display: flex; flex-direction: column; justify-content: space-between; box-shadow: var(--shadow-lg); overflow: hidden; }
+.brand-card .emblem { width: 92px; }
+.brand-card .big { font-family: Montserrat, sans-serif; font-weight: 900; line-height: .95; text-transform: uppercase; }
+.brand-card .big span { display: block; font-size: 1.5rem; font-weight: 700; text-transform: none; }
+.brand-card .big strong { display: block; font-size: 4.6rem; letter-spacing: -.02em; }
+.brand-card .big em { display: block; font-style: normal; font-size: 1.2rem; font-weight: 700; margin-top: 6px; }
+.brand-card .wordmark { color: #fff; align-self: center; text-align: center; align-items: center; }
+.brand-card .wordmark b { font-size: 1.9rem; }
+.brand-card .wordmark i { align-self: center; font-size: .75rem; }
+.brand-card .photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.brand-card.has-photo::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 45%, rgba(0,60,25,.85)); }
+.brand-card.has-photo > :not(.photo) { position: relative; z-index: 1; }
+.hero .chip { z-index: 2; }
+.hero-art { aspect-ratio: auto; max-width: 400px; }
+.hero-art .chip.a { top: 6%; left: -6%; }
+.hero-art .chip.b { bottom: 8%; right: -6%; }
+
+/* destacados circulares, como las historias destacadas de Instagram */
+.services { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 22px 12px; }
+.service { background: none; box-shadow: none; padding: 0; flex-direction: column; text-align: center; gap: 10px; font-weight: 700; font-size: .95rem; }
+.service .ico { width: 92px; height: 92px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--primary) 75%, white), var(--primary) 70%); box-shadow: 0 0 0 4px #fff, 0 0 0 6px var(--line); }
+.service .ico svg.i { width: 40px; height: 40px; stroke-width: 1.6; }
+
+.social-band { background-color: var(--primary); background-image: repeating-linear-gradient(115deg, rgba(255,255,255,.05) 0 18px, transparent 18px 46px); }
+.social-band .handle { font-family: 'Roboto Slab', serif; font-weight: 700; opacity: .95; }
+.promo-art { background: var(--primary); background-image: repeating-linear-gradient(115deg, rgba(255,255,255,.06) 0 18px, transparent 18px 46px); text-transform: uppercase; font-family: Montserrat, sans-serif; font-weight: 900; }
+@media (max-width: 560px) {
+  .wordmark b { font-size: 1.15rem; }
+  .brand .logo { width: 40px; height: 40px; }
+  .brand-card .big strong { font-size: 3.6rem; }
+  .service .ico { width: 76px; height: 76px; }
+}
+.hero-art .brand-card img.emblem { position: static; inset: auto; width: 92px; height: auto; border-radius: 0; }
+.hero-art .brand-card img.photo { border-radius: 0; inset: 0; width: 100%; height: 100%; }
+/* etiquetas flotantes por fuera de la placa, sin tapar el logo ni el nombre */
+.hero-art .chip.a { top: -18px; left: auto; right: -5%; }
+.hero-art .chip.b { bottom: -18px; right: auto; left: -5%; }
+@media (max-width: 900px) {
+  .hero-art .chip.a { right: 8px; }
+  .hero-art .chip.b { left: 8px; }
+}

@@ -48,23 +48,31 @@ const minFree = () => Math.min(...ZONES().map((z) => Number(z.free_from) || Infi
 
 function renderInfo() {
   const free = Number.isFinite(minFree()) ? minFree() : 0;
-  const zoneNames = ZONES().map((z) => z.name).join(', ');
-  $('#brand').innerHTML = `${logoHTML(S)}<span>${esc(S.name)}</span>`;
+  // "CABA, GBA 1er cordón, GBA 2do cordón" -> "CABA y GBA" para que entre en la barra
+  const zoneNames = ZONES().some((z) => /gba|cord/i.test(z.name)) && ZONES().some((z) => /caba/i.test(z.name)) ? 'CABA y GBA' : ZONES().map((z) => z.name).join(', ');
+  $('#brand').innerHTML = `${logoHTML(S)}`;
   $('#tb-ship').textContent = ZONES().length ? `🚚 Envíos a ${zoneNames}${free ? ` · gratis desde ${money(free)}` : ''}` : '🏪 Retiro en la farmacia';
   $('#tb-phone').textContent = S.phone; $('#tb-phone').href = `tel:${S.phone}`;
   $('#tb-hours').textContent = (S.hours || '').split('\n')[0];
 
   const words = (S.slogan || '').split(' ');
   const half = Math.ceil(words.length / 2);
-  $('#hero-eyebrow').textContent = S.name;
+  const years = S.since_year ? new Date().getFullYear() - Number(S.since_year) : 0;
+  $('#hero-eyebrow').textContent = S.since_year ? `${S.name} · Desde ${S.since_year}` : S.name;
   $('#hero-title').innerHTML = `${esc(words.slice(0, half).join(' '))} <span>${esc(words.slice(half).join(' '))}</span>`;
-  $('#hero-lead').textContent = 'Comprá online tus productos de farmacia, perfumería y cuidado personal. Pagás con transferencia o QR y seguís tu pedido en tiempo real.';
+  $('#hero-lead').textContent = 'Medicamentos, dermocosmética, perfumería y maquillaje, con la atención de siempre. Comprá online, pagá con transferencia o QR y seguí tu pedido en tiempo real.';
   $('#cta-shop').innerHTML = `${icon('cart')} Comprar ahora`;
   $('#cta-wa').innerHTML = `${icon('phone')} Consultanos`;
   $('#cta-wa').href = waLink('¡Hola! Quería hacer una consulta.');
-  $('#hero-art').innerHTML = `<div class="blob"></div>${S.hero_image ? `<img src="${esc(S.hero_image)}" alt="">` : '<div class="cross">✚</div>'}
+  // placa verde como las de sus posteos; si hay foto de portada, la usa de fondo
+  $('#hero-art').innerHTML = `<div class="brand-card brand-green ${S.hero_image ? 'has-photo' : ''}">
+      ${S.hero_image ? `<img class="photo" src="${esc(S.hero_image)}" alt="">` : ''}
+      <img class="emblem" src="/img/logo-durand-white.svg" alt="">
+      ${years > 0 ? `<div class="big"><span>¡Celebramos</span><strong>${years} años!</strong><em>cuidando la salud del barrio</em></div>` : `<div class="big"><strong>${esc(S.slogan)}</strong></div>`}
+      ${wordmarkHTML(S)}
+    </div>
     <div class="chip a">${icon('shield')} Farmacéuticos matriculados</div>
-    <div class="chip b">${icon('truck')} Envío en el día</div>`;
+    ${ZONES().length ? `<div class="chip b">${icon('truck')} Envíos a CABA y GBA</div>` : ''}`;
 
   const perks = [
     ['truck', 'Envíos a domicilio', ZONES().length ? `${ZONES().some((z) => /gba|cord/i.test(z.name)) ? 'CABA y GBA' : zoneNames}${free ? ` · gratis desde ${money(free)}` : ''}` : 'Consultá por tu zona'],
@@ -74,9 +82,11 @@ function renderInfo() {
   ];
   $('#perks').innerHTML = perks.map(([i, b, s]) => `<div class="perk"><span class="ico">${icon(i)}</span><div><b>${b}</b><small>${s}</small></div></div>`).join('');
 
-  const svcIcons = ['steth', 'heart', 'syringe', 'sparkle', 'shield', 'truck', 'pill', 'clock'];
+  // ícono según el servicio, como las historias destacadas del Instagram
+  const svcIcon = (t) => [[/vacun/i, 'syringe'], [/obra|prepag/i, 'heartplus'], [/maquill/i, 'lipstick'], [/perfum|cosm|dermo/i, 'sparkle'], [/presi/i, 'steth'],
+    [/env[ií]o/i, 'truck'], [/atenci|farmac/i, 'users'], [/promo|regal/i, 'gift']].find(([r]) => r.test(t))?.[1] || 'pill';
   $('#services').innerHTML = (S.services || '').split('|').filter(Boolean)
-    .map((s, i) => `<div class="service"><span class="ico">${icon(svcIcons[i % svcIcons.length])}</span>${esc(s)}</div>`).join('');
+    .map((s) => `<div class="service"><span class="ico">${icon(svcIcon(s))}</span>${esc(s)}</div>`).join('');
 
   $('#about-title').textContent = S.name;
   $('#about-text').textContent = S.about;
@@ -88,7 +98,10 @@ function renderInfo() {
 
   const socials = [['instagram', 'ig', 'Instagram'], ['facebook', 'fb', 'Facebook'], ['tiktok', 'tiktok', 'TikTok']].filter(([k]) => S[k]);
   $('#social-links').innerHTML = socials.map(([k, i, l]) => `<a href="${esc(S[k])}" target="_blank" rel="noopener">${icon(i)} ${l}</a>`).join('')
+    + (S.linktree ? `<a href="${esc(S.linktree)}" target="_blank" rel="noopener">${icon('link')} Todos los links</a>` : '')
     + (S.whatsapp ? `<a href="${waLink()}" target="_blank" rel="noopener">${icon('phone')} WhatsApp</a>` : '');
+  const handle = (S.instagram || '').match(/instagram\.com\/([^/?#]+)/i);
+  $('#social-handle').textContent = handle ? `@${handle[1]}` : '';
 
   $('#contact-opts').innerHTML = `
     ${S.whatsapp ? `<a class="contact-opt wa" href="${waLink('¡Hola! Quería hacer una consulta.')}" target="_blank" rel="noopener"><span class="ico">${WA_SVG}</span><div><b>WhatsApp</b><br><span class="muted">Respuesta rápida</span></div></a>` : ''}
