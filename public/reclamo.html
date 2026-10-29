@@ -114,7 +114,7 @@
         <p class="muted" style="margin:6px 0 0">Escribinos y lo resolvemos juntos.</p>
         <div class="big">${esc(fmtPhone(owner))}</div>
         <a class="btn btn-block" style="background:#25d366;color:#fff" target="_blank" rel="noopener" href="https://wa.me/${waNum()}?text=${encodeURIComponent('Hola! Tengo un problema con mi pedido' + (q.get('pedido') ? ' #' + q.get('pedido') : ''))}">${WA_SVG.replace('<svg', '<svg width="20" height="20"')} Escribir por WhatsApp</a>
-        <a class="btn btn-ghost btn-block" style="margin-top:10px" href="tel:${esc(S.phone)}">${icon('phone')} ${esc(S.phone)}</a>`;
+        <a class="btn btn-ghost btn-block" style="margin-top:10px" href="${telHref(S.phone)}">${icon('phone')} ${esc(S.phone)}</a>`;
       stepCheck();
       if (q.get('pedido') && q.get('codigo') && !regret) $('#f-check').requestSubmit();
     })();

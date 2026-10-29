@@ -52,7 +52,7 @@ function renderInfo() {
   const zoneNames = ZONES().some((z) => /gba|cord/i.test(z.name)) && ZONES().some((z) => /caba/i.test(z.name)) ? 'CABA y GBA' : ZONES().map((z) => z.name).join(', ');
   $('#brand').innerHTML = `${logoHTML(S)}`;
   $('#tb-ship').textContent = ZONES().length ? `🚚 Envíos a ${zoneNames}${free ? ` · gratis desde ${money(free)}` : ''}` : '🏪 Retiro en la farmacia';
-  $('#tb-phone').textContent = S.phone; $('#tb-phone').href = `tel:${S.phone}`;
+  $('#tb-phone').textContent = S.phone; $('#tb-phone').href = telHref(S.phone);
   $('#tb-hours').textContent = (S.hours || '').split('\n')[0];
 
   const words = (S.slogan || '').split(' ');
@@ -93,7 +93,7 @@ function renderInfo() {
   $('#info-list').innerHTML = `
     <li><span class="ico">${icon('pin')}</span><div><b>Dirección</b><br>${esc(S.address)}, ${esc(S.city)}${S.maps_url ? `<br><a href="${esc(S.maps_url)}" target="_blank" rel="noopener">Cómo llegar →</a>` : ''}</div></li>
     <li><span class="ico">${icon('clock')}</span><div><b>Horarios</b><br><span class="pre">${esc(S.hours)}</span></div></li>
-    <li><span class="ico">${icon('phone')}</span><div><b>Teléfono</b><br><a href="tel:${esc(S.phone)}">${esc(S.phone)}</a></div></li>`;
+    <li><span class="ico">${icon('phone')}</span><div><b>Teléfono</b><br><a href="${telHref(S.phone)}">${esc(S.phone)}</a></div></li>`;
   $('#map').src = `https://www.google.com/maps?q=${encodeURIComponent(`${S.name}, ${S.address}, ${S.city}`)}&output=embed`;
 
   const socials = [['instagram', 'ig', 'Instagram'], ['facebook', 'fb', 'Facebook'], ['tiktok', 'tiktok', 'TikTok']].filter(([k]) => S[k]);
@@ -105,14 +105,14 @@ function renderInfo() {
 
   $('#contact-opts').innerHTML = `
     ${S.whatsapp ? `<a class="contact-opt wa" href="${waLink('¡Hola! Quería hacer una consulta.')}" target="_blank" rel="noopener"><span class="ico">${WA_SVG}</span><div><b>WhatsApp</b><br><span class="muted">Respuesta rápida</span></div></a>` : ''}
-    <a class="contact-opt" href="tel:${esc(S.phone)}"><span class="ico">${icon('phone')}</span><div><b>Llamanos</b><br><span class="muted">${esc(S.phone)}</span></div></a>
+    <a class="contact-opt" href="${telHref(S.phone)}"><span class="ico">${icon('phone')}</span><div><b>Llamanos</b><br><span class="muted">${esc(S.phone)}</span></div></a>
     <a class="contact-opt" href="mailto:${esc(S.email)}"><span class="ico">${icon('mail')}</span><div><b>Email</b><br><span class="muted">${esc(S.email)}</span></div></a>
     ${S.instagram ? `<a class="contact-opt" href="${esc(S.instagram)}" target="_blank" rel="noopener"><span class="ico" style="background:linear-gradient(45deg,#f9a825,#e1306c,#833ab4)">${icon('ig')}</span><div><b>Instagram</b><br><span class="muted">Mandanos un DM</span></div></a>` : ''}`;
 
   $('#f-name').textContent = S.name;
   $('#f-about').textContent = S.slogan;
   $('#f-hours').textContent = S.hours;
-  $('#f-contact').innerHTML = `${esc(S.address)}<br>${esc(S.city)}<br><a href="tel:${esc(S.phone)}">${esc(S.phone)}</a><br><a href="mailto:${esc(S.email)}">${esc(S.email)}</a>`;
+  $('#f-contact').innerHTML = `${esc(S.address)}<br>${esc(S.city)}<br><a href="${telHref(S.phone)}">${esc(S.phone)}</a><br><a href="mailto:${esc(S.email)}">${esc(S.email)}</a>`;
   $('#f-copy').textContent = `© ${new Date().getFullYear()} ${S.name}. Todos los derechos reservados.`;
   $('#wa-float').innerHTML = WA_SVG;
   $('#wa-float').href = waLink('¡Hola! Quería hacer una consulta.');

@@ -48,6 +48,12 @@ const fmtPhone = (p) => {
   return /^\d+$/.test(String(p || '').trim()) && m ? `+54 9 ${m[1]} ${m[2]}-${m[3]}` : String(p || '');
 };
 
+// link para llamar: "011 5833-7916" -> "tel:+541158337916"
+const telHref = (p) => {
+  const d = String(p || '').replace(/\D/g, '');
+  return 'tel:' + (String(p || '').trim().startsWith('+') ? '+' + d : d.startsWith('0') ? '+54' + d.slice(1) : d);
+};
+
 function toast(msg, ms = 2600) {
   const t = document.createElement('div');
   t.className = 'toast';
