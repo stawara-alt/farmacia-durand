@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Seguimiento de pedido | Farmacia</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@600;700&display=swap">
+  <link rel="stylesheet" href="/css/styles.css">
+  <style>.sub-card { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; background: var(--primary-soft); }</style>
+</head>
+<body>
+  <header class="site">
+    <div class="container"><a href="/" class="brand" id="brand"></a><a href="/" class="btn btn-ghost btn-sm" style="margin-left:auto">Volver a la tienda</a></div>
+  </header>
+  <main class="container track-wrap" id="app" style="max-width:860px"><p class="muted">Cargando pedido…</p></main>
+  <a class="wa-float" id="wa-float" target="_blank" rel="noopener" aria-label="WhatsApp"></a>
+  <script src="/js/common.js"></script>
+  <script>
+    const code = location.pathname.split('/').pop();
+    let S = {}, lastStatus = null, lastHist = 0;
+    const FLOW_ENVIO = [['pendiente', '🕒', 'Recibido'], ['aceptado', '✅', 'Aceptado'], ['en_preparacion', '📦', 'En preparación'], ['en_envio', '🚚', 'En camino'], ['entregado', '🎉', 'Entregado']];
+    const FLOW_RETIRO = [['pendiente', '🕒', 'Recibido'], ['aceptado', '✅', 'Aceptado'], ['en_preparacion', '📦', 'En preparación'], ['listo_retiro', '🏪', 'Listo para retirar'], ['entregado', '🎉', 'Entregado']];
+    const MSG = {
+      pendiente: 'Recibimos tu pedido. En cuanto verifiquemos el pago lo vamos a aceptar.',
+      aceptado: '¡Tu pago fue confirmado y el pedido aceptado!',
+      en_preparacion: 'Estamos preparando tu pedido con mucho cuidado.',
+      en_envio: 'Tu pedido está en camino. ¡Ya llega!',
+      listo_retiro: 'Tu pedido está listo. Podés pasar a retirarlo por la farmacia.',
+      entregado: '¡Pedido entregado! Gracias por confiar en nosotros.',
+      rechazado: 'No pudimos aceptar tu pedido. Comunicate con nosotros para más información.',
+      cancelado: 'Este pedido fue cancelado.',
+    };
+
+    async function load() {
+      let o;
+      try { o = await api('/api/orders/' + code); }
+      catch { $('#app').innerHTML = '<div class="track-card center"><h2>Pedido no encontrado</h2><p class="muted">Revisá el link que te enviamos por email.</p></div>'; return; }
+      if (o.status === lastStatus && o.history.length === lastHist) return;
+      if (lastStatus && o.status !== lastStatus) toast('🔔 Tu pedido cambió de estado: ' + STATUS_LABELS[o.status]);
+      lastStatus = o.status; lastHist = o.history.length;
+      render(o);
+    }
+
+    function render(o) {
+      const flow = o.delivery_method === 'retiro' ? FLOW_RETIRO : FLOW_ENVIO;
+      const bad = ['rechazado', 'cancelado'].includes(o.status);
+      const idx = flow.findIndex(([k]) => k === o.status);
+      const pct = idx <= 0 ? 0 : (idx / (flow.length - 1)) * 88;
+      const isNew = new URLSearchParams(location.search).has('nuevo');
+      const showPay = o.status === 'pendiente';
+      const p = o.payment;
+      $('#app').innerHTML = `
+        ${isNew ? `<div class="track-card" style="background:var(--primary);color:#fff"><h2 style="margin:0 0 6px">¡Gracias por tu compra, ${esc(o.customer_name.split(' ')[0])}! 🎉</h2>
+          <p style="margin:0;opacity:.95">Te enviamos un email con este link. Guardalo para seguir tu pedido: te avisaremos cada vez que cambie el estado.</p></div>` : ''}
+        <div class="track-card">
+          <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center">
+            <div><span class="muted">Pedido</span><h2 style="margin:0">#${o.id}</h2><span class="muted">${new Date(o.created_at.replace(' ', 'T')).toLocaleString('es-AR')}</span></div>
+            <span class="status-pill ${bad ? 'bad' : ''}">${esc(o.status_label || STATUS_LABELS[o.status])}</span>
+          </div>
+          ${bad ? '' : `<div class="steps"><div class="bar" style="width:${pct}%"></div>${flow.map(([k, e, l], i) =>
+            `<div class="step ${i < idx ? 'done' : i === idx ? 'current' : ''}"><div class="dot">${i < idx ? '<span style="color:#fff">✓</span>' : e}</div>${l}</div>`).join('')}</div>`}
+          <p style="font-size:1.1rem;margin:18px 0 0"><b>${MSG[o.status] || ''}</b></p>
+        </div>
+
+        ${o.subscribed ? '' : `<div class="track-card sub-card" id="sub-card"><div><b>💌 ¿Querés enterarte de las promociones?</b><br><span class="muted">Te mandamos descuentos y novedades a tu email. Te podés dar de baja cuando quieras.</span></div>
+          <button class="btn btn-primary" id="sub-btn">Suscribirme</button></div>`}
+        ${showPay ? `<div class="track-card">
+          <h3>${o.payment_method === 'qr' ? icon('qr') + ' Pagá con QR' : icon('bank') + ' Datos para transferir'}</h3>
+          <div class="pay-grid">
+            <div>
+              ${o.payment_method === 'qr' ? `<p>Escaneá el código con tu billetera virtual (Mercado Pago, MODO, app de tu banco) y aboná <b>${money(o.total)}</b>.</p>
+                <p class="muted">Si tu app lo pide, también podés transferir al alias:</p>` : `<p>Transferí <b>${money(o.total)}</b> a la siguiente cuenta:</p>`}
+              ${[['Alias', p.bank_alias], ['CBU / CVU', p.bank_cbu], ['Titular', p.bank_holder], ['CUIT', p.bank_cuit], ['Banco', p.bank_name], ['Monto', String(o.total)]].filter(([, v]) => v)
+                .map(([k, v]) => `<div class="copy-row"><span class="muted">${k}</span><b>${esc(k === 'Monto' ? money(v) : v)}</b><button class="icon-btn" data-copy="${esc(v)}" aria-label="Copiar">${icon('copy')}</button></div>`).join('')}
+            </div>
+            ${o.payment_method === 'qr' ? `<div class="qr-box"><img src="${esc(p.qr_image || `/api/orders/${o.code}/qr.png`)}" alt="Código QR de pago"></div>` : ''}
+          </div>
+          <div style="margin-top:20px;padding:16px;border-radius:14px;background:var(--primary-soft)">
+            ${o.has_receipt ? `<b>✓ Recibimos tu comprobante.</b> <span class="muted">Lo estamos verificando.</span><br>` : '<b>¿Ya pagaste?</b> Subí el comprobante para que confirmemos tu pedido más rápido.<br>'}
+            <label class="btn btn-primary btn-sm" style="margin-top:10px">${icon('upload')} ${o.has_receipt ? 'Subir otro comprobante' : 'Subir comprobante'}
+              <input type="file" id="receipt" accept="image/*,application/pdf" hidden></label>
+          </div>
+        </div>` : ''}
+
+        <div class="track-card">
+          <h3>Tu compra</h3>
+          ${o.items.map((i) => `<div class="cart-item"><img src="${esc(i.image || PLACEHOLDER)}" alt=""><div><div class="name">${esc(i.name)}</div><div class="muted">${i.qty} × ${money(i.unit_price)}</div></div><b>${money(i.qty * i.unit_price)}</b></div>`).join('')}
+          <div style="display:grid;gap:6px;margin-top:14px">
+            <div class="sum-row"><span>Subtotal</span><span>${money(o.subtotal)}</span></div>
+            <div class="sum-row"><span>Envío</span><span>${o.shipping_fee ? money(o.shipping_fee) : 'Gratis'}</span></div>
+            <div class="sum-row total"><span>Total</span><span>${money(o.total)}</span></div>
+          </div>
+          <p class="muted" style="margin-bottom:0">${o.delivery_method === 'envio' ? `🚚 Envío a: ${esc(o.address)}${o.city ? ', ' + esc(o.city) : ''}` : `🏪 Retiro en ${esc(S.address)}`} · Pago: ${o.payment_method === 'qr' ? 'QR' : 'Transferencia'}</p>
+        </div>
+
+        <div class="track-card">
+          <h3>Historial</h3>
+          <ul class="timeline">${[...o.history].reverse().map((h) => `<li><b>${esc(STATUS_LABELS[h.status] || h.status)}</b> <span class="muted">· ${new Date(h.created_at.replace(' ', 'T')).toLocaleString('es-AR')}</span>${h.note ? `<br>${esc(h.note)}` : ''}</li>`).join('')}</ul>
+        </div>
+        <p class="center muted">¿Dudas con tu pedido? <a href="https://wa.me/${(S.whatsapp || '').replace(/\D/g, '')}?text=${encodeURIComponent('Hola! Consulto por mi pedido #' + o.id)}" target="_blank" rel="noopener">Escribinos por WhatsApp</a> o llamanos al ${esc(S.phone)}.</p>`;
+
+      const sb = $('#sub-btn');
+      if (sb) sb.onclick = async () => {
+        try { await api(`/api/orders/${code}/subscribe`, { method: 'POST' }); $('#sub-card').innerHTML = '<b>✓ ¡Listo! Te vamos a avisar de las próximas promociones.</b>'; }
+        catch (e) { toast(e.message); }
+      };
+      $$('[data-copy]').forEach((b) => (b.onclick = () => navigator.clipboard.writeText(b.dataset.copy).then(() => toast('Copiado ✓'))));
+      const inp = $('#receipt');
+      if (inp) inp.onchange = async () => {
+        const fd = new FormData(); fd.append('receipt', inp.files[0]);
+        try { await api(`/api/orders/${code}/receipt`, { method: 'POST', body: fd }); toast('¡Comprobante enviado! ✓'); lastHist = -1; load(); }
+        catch (e) { toast(e.message); }
+      };
+    }
+
+    (async () => {
+      S = await api('/api/settings');
+      applyTheme(S);
+      $('#brand').innerHTML = `${logoHTML(S)}<span>${esc(S.name)}</span>`;
+      $('#wa-float').innerHTML = WA_SVG;
+      $('#wa-float').href = `https://wa.me/${(S.whatsapp || '').replace(/\D/g, '')}`;
+      await load();
+      setInterval(load, 20000); // se actualiza solo cuando la farmacia cambia el estado
+    })();
+  </script>
+</body>
+</html>

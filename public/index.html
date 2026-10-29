@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Farmacia | Tienda online</title>
+  <meta name="description" content="Farmacia online: medicamentos de venta libre, dermocosmética, perfumería y cuidado personal con envío a domicilio.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@600;700&display=swap">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="topbar">
+    <div class="container">
+      <span id="tb-ship">🚚 Envíos a domicilio</span>
+      <span class="hide-sm"><a id="tb-phone" href="#"></a> · <span id="tb-hours"></span></span>
+    </div>
+  </div>
+
+  <header class="site">
+    <div class="container">
+      <a href="/" class="brand" id="brand"></a>
+      <nav class="main" id="nav">
+        <a href="#promociones" id="nav-promos" class="hidden">Promos</a>
+        <a href="#productos">Productos</a>
+        <a href="#servicios">Servicios</a>
+        <a href="#nosotros">Nosotros</a>
+        <a href="#contacto">Contacto</a>
+      </nav>
+      <button class="icon-btn menu-btn" id="menu-btn" aria-label="Menú"></button>
+      <button class="icon-btn cart-btn" id="cart-btn" aria-label="Carrito"><span class="cart-count" id="cart-count">0</span></button>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="container">
+      <div>
+        <span class="eyebrow" id="hero-eyebrow">Farmacia</span>
+        <h1 id="hero-title"></h1>
+        <p class="lead" id="hero-lead"></p>
+        <div class="cta">
+          <a href="#productos" class="btn btn-primary" id="cta-shop"></a>
+          <a href="#" target="_blank" rel="noopener" class="btn btn-ghost" id="cta-wa">Consultanos</a>
+        </div>
+      </div>
+      <div class="hero-art" id="hero-art"></div>
+    </div>
+  </section>
+
+  <div class="container">
+    <div class="perks" id="perks"></div>
+  </div>
+
+  <section class="block hidden" id="promociones" style="padding-bottom:0">
+    <div class="container">
+      <div class="section-head"><div><span class="eyebrow">Aprovechá</span><h2>Promociones</h2></div></div>
+      <div class="promos" id="promos"></div>
+    </div>
+  </section>
+
+  <section class="block" id="productos">
+    <div class="container">
+      <div class="section-head">
+        <div><span class="eyebrow">Tienda online</span><h2>Nuestros productos</h2></div>
+      </div>
+      <div class="catalog-tools">
+        <label class="search" id="search-wrap"><input type="search" id="q" placeholder="Buscar por nombre o marca…"></label>
+        <select class="sort" id="sort" aria-label="Ordenar">
+          <option value="">Destacados</option>
+          <option value="price_asc">Menor precio</option>
+          <option value="price_desc">Mayor precio</option>
+          <option value="name">A - Z</option>
+        </select>
+      </div>
+      <div class="chips" id="chips"></div>
+      <div class="grid" id="grid"></div>
+    </div>
+  </section>
+
+  <section class="block" id="servicios" style="background:#fff">
+    <div class="container">
+      <div class="section-head"><div><span class="eyebrow">Te acompañamos</span><h2>Servicios</h2></div></div>
+      <div class="services" id="services"></div>
+    </div>
+  </section>
+
+  <section class="block" id="nosotros">
+    <div class="container about">
+      <div class="info-card">
+        <span class="eyebrow">Quiénes somos</span>
+        <h2 id="about-title"></h2>
+        <p id="about-text" class="pre"></p>
+        <ul class="info-list" id="info-list"></ul>
+      </div>
+      <iframe class="map" id="map" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Ubicación"></iframe>
+    </div>
+  </section>
+
+  <section class="container">
+    <div class="social-band">
+      <div>
+        <h2>Seguinos en redes</h2>
+        <p style="margin:0;opacity:.9">Promos, consejos de salud y novedades todas las semanas.</p>
+      </div>
+      <div class="social-links" id="social-links"></div>
+    </div>
+  </section>
+
+  <section class="block" id="contacto">
+    <div class="container contact">
+      <div>
+        <span class="eyebrow">Hablemos</span>
+        <h2>Contacto</h2>
+        <p class="muted">¿Tenés dudas sobre un producto, tu receta o un pedido? Escribinos por el medio que prefieras.</p>
+        <div class="contact-opts" id="contact-opts"></div>
+      </div>
+      <form class="info-card" id="contact-form">
+        <h3>Envianos tu consulta</h3>
+        <div class="two">
+          <div class="field"><label for="c-name">Nombre</label><input type="text" id="c-name" name="name" required></div>
+          <div class="field"><label for="c-phone">Teléfono</label><input type="tel" id="c-phone" name="phone"></div>
+        </div>
+        <div class="field"><label for="c-email">Email</label><input type="email" id="c-email" name="email"></div>
+        <div class="field"><label for="c-msg">Mensaje</label><textarea id="c-msg" name="message" required></textarea></div>
+        <button class="btn btn-primary btn-block">Enviar consulta</button>
+      </form>
+    </div>
+  </section>
+
+  <footer class="site">
+    <div class="container">
+      <div class="cols">
+        <div><h4 id="f-name"></h4><p id="f-about"></p></div>
+        <div><h4>Horarios</h4><p class="pre" id="f-hours"></p></div>
+        <div><h4>Contacto</h4><p id="f-contact"></p></div>
+        <div><h4>Recibí promociones</h4><p>Enterate primero de descuentos y novedades.</p>
+          <form class="news-form" id="news-form"><input type="email" name="email" placeholder="Tu email" required aria-label="Tu email"><button class="btn btn-primary btn-sm">Suscribirme</button></form></div>
+      </div>
+      <div class="copy"><span id="f-copy"></span><a href="/admin">Acceso administración</a></div>
+    </div>
+  </footer>
+
+  <a class="wa-float" id="wa-float" target="_blank" rel="noopener" aria-label="WhatsApp"></a>
+  <div id="layer"></div>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/store.js"></script>
+</body>
+</html>

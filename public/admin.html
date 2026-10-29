@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Administración | Farmacia</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@600;700&display=swap">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body class="admin">
+  <!-- login -->
+  <div id="login" class="login hidden">
+    <form class="info-card" id="login-form" style="width:min(380px,100%)">
+      <div class="brand" style="margin-bottom:18px"><span class="logo">✚</span><span>Panel de administración</span></div>
+      <div id="login-err"></div>
+      <div class="field"><label>Usuario</label><input type="text" name="user" autocomplete="username" required></div>
+      <div class="field"><label>Contraseña</label><input type="password" name="password" autocomplete="current-password" required></div>
+      <button class="btn btn-primary btn-block">Ingresar</button>
+      <p class="center"><a href="/">← Volver a la tienda</a></p>
+    </form>
+  </div>
+
+  <!-- app -->
+  <div id="shell" class="shell hidden">
+    <aside class="side" id="side">
+      <a href="/" class="brand" id="a-brand" target="_blank"></a>
+      <nav id="side-nav">
+        <a data-tab="resumen">📊 Resumen</a>
+        <a data-tab="pedidos">🛒 Pedidos <span class="pill" id="n-pend"></span></a>
+        <a data-tab="productos">💊 Productos y stock</a>
+        <a data-tab="compras">🧾 Facturas de compra</a>
+        <a data-tab="costos">💲 Costos y márgenes</a>
+        <a data-tab="promos">📣 Promociones</a>
+        <a data-tab="estadisticas">📈 Estadísticas</a>
+        <a data-tab="importar">⬇️ Importar / Mercado Libre</a>
+        <a data-tab="mensajes">💬 Mensajes <span class="pill" id="n-msg"></span></a>
+        <a data-tab="config">⚙️ Configuración</a>
+      </nav>
+      <button class="btn btn-light btn-sm" id="logout">Cerrar sesión</button>
+    </aside>
+    <main class="main-area">
+      <div class="mobile-top"><button class="icon-btn" id="side-toggle" aria-label="Menú">☰</button><b id="tab-title"></b></div>
+      <section id="view"></section>
+    </main>
+  </div>
+  <div id="layer"></div>
+
+  <script src="/vendor/chart.umd.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/js/admin.js"></script>
+</body>
+</html>

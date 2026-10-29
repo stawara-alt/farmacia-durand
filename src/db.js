@@ -1,0 +1,258 @@
+const path = require('path');
+const fs = require('fs');
+const Database = require('better-sqlite3');
+
+const DATA_DIR = path.join(__dirname, '..', 'data');
+fs.mkdirSync(DATA_DIR, { recursive: true });
+
+const db = new Database(process.env.DB_PATH || path.join(DATA_DIR, 'farmacia.db'));
+db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = ON');
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS products (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  category TEXT DEFAULT 'General',
+  brand TEXT DEFAULT '',
+  sku TEXT DEFAULT '',
+  price REAL NOT NULL DEFAULT 0,          -- precio de venta al público (final)
+  cost REAL NOT NULL DEFAULT 0,           -- costo neto del producto (sin IVA)
+  shipping_cost REAL NOT NULL DEFAULT 0,  -- costo de envío/flete por unidad que paga la farmacia
+  iva_rate REAL NOT NULL DEFAULT 21,      -- % de IVA aplicable al costo
+  stock INTEGER NOT NULL DEFAULT 0,
+  images TEXT NOT NULL DEFAULT '[]',      -- JSON array de URLs
+  requires_prescription INTEGER NOT NULL DEFAULT 0,
+  featured INTEGER NOT NULL DEFAULT 0,
+  active INTEGER NOT NULL DEFAULT 1,
+  ml_id TEXT UNIQUE,
+  ml_permalink TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS price_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  price REAL NOT NULL,
+  cost REAL NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS stock_movements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  delta INTEGER NOT NULL,
+  stock_after INTEGER NOT NULL,
+  reason TEXT NOT NULL,                   -- carga, ajuste, venta, cancelacion, mercadolibre
+  ref TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS orders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  code TEXT NOT NULL UNIQUE,              -- código público para seguir el pedido
+  customer_name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  phone TEXT DEFAULT '',
+  delivery_method TEXT NOT NULL,          -- envio | retiro
+  address TEXT DEFAULT '',
+  city TEXT DEFAULT '',
+  notes TEXT DEFAULT '',
+  payment_method TEXT NOT NULL,           -- transferencia | qr
+  subtotal REAL NOT NULL,
+  shipping_fee REAL NOT NULL DEFAULT 0,
+  total REAL NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pendiente',
+  receipt TEXT,                           -- comprobante de pago subido por el cliente
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS order_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  image TEXT,
+  unit_price REAL NOT NULL,
+  unit_cost_total REAL NOT NULL,          -- costo total c/IVA y envío al momento de la venta
+  qty INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS order_status_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  status TEXT NOT NULL,
+  note TEXT DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  email TEXT DEFAULT '',
+  phone TEXT DEFAULT '',
+  message TEXT NOT NULL,
+  read INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS purchase_invoices (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  supplier TEXT NOT NULL,
+  number TEXT NOT NULL DEFAULT '',
+  invoice_date TEXT DEFAULT '',
+  invoice_type TEXT DEFAULT '',
+  subtotal_net REAL NOT NULL DEFAULT 0,
+  iva_total REAL NOT NULL DEFAULT 0,
+  other_taxes REAL NOT NULL DEFAULT 0,     -- percepciones / impuestos internos (no se suman al costo)
+  freight REAL NOT NULL DEFAULT 0,         -- flete sin IVA, se prorratea en el costo de envío de cada producto
+  total REAL NOT NULL DEFAULT 0,
+  price_policy TEXT DEFAULT '',
+  file TEXT,
+  notes TEXT DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'aplicada', -- aplicada | anulada
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS purchase_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  invoice_id INTEGER NOT NULL REFERENCES purchase_invoices(id) ON DELETE CASCADE,
+  product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+  code TEXT DEFAULT '',
+  barcode TEXT DEFAULT '',
+  description TEXT NOT NULL,
+  qty INTEGER NOT NULL,
+  unit_cost REAL NOT NULL,                 -- costo neto unitario (con bonificación, sin IVA)
+  iva_rate REAL NOT NULL DEFAULT 21,
+  freight_unit REAL NOT NULL DEFAULT 0,
+  old_cost REAL, old_shipping_cost REAL, old_price REAL, new_price REAL,
+  created_product INTEGER NOT NULL DEFAULT 0
+);
+
+-- el código que usa cada proveedor para un producto: se aprende al aplicar facturas
+CREATE TABLE IF NOT EXISTS supplier_codes (
+  supplier TEXT NOT NULL,
+  code TEXT NOT NULL,
+  product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  PRIMARY KEY (supplier, code)
+);
+
+CREATE TABLE IF NOT EXISTS subscribers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  name TEXT DEFAULT '',
+  source TEXT DEFAULT 'web',               -- compra | web | admin
+  token TEXT NOT NULL UNIQUE,              -- para el link de baja
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  unsubscribed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS promotions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  body TEXT DEFAULT '',
+  label TEXT DEFAULT '',                   -- etiqueta corta, ej. "20% OFF" o "2x1"
+  image TEXT DEFAULT '',
+  discount_pct REAL NOT NULL DEFAULT 0,    -- 0 = solo anuncio; > 0 = se descuenta del precio en la tienda
+  target TEXT NOT NULL DEFAULT 'all',      -- all | category | products
+  target_category TEXT DEFAULT '',
+  product_ids TEXT NOT NULL DEFAULT '[]',
+  starts_at TEXT DEFAULT '',               -- YYYY-MM-DD (vacío = desde ya)
+  ends_at TEXT DEFAULT '',                 -- YYYY-MM-DD inclusive (vacío = sin vencimiento)
+  show_on_site INTEGER NOT NULL DEFAULT 1,
+  active INTEGER NOT NULL DEFAULT 1,
+  send_status TEXT NOT NULL DEFAULT 'borrador', -- borrador | enviando | enviada
+  sent_count INTEGER NOT NULL DEFAULT 0,
+  send_total INTEGER NOT NULL DEFAULT 0,
+  sent_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
+`);
+
+// migraciones de columnas agregadas después
+const productCols = db.prepare('PRAGMA table_info(products)').all().map((c) => c.name);
+if (!productCols.includes('barcode')) db.exec("ALTER TABLE products ADD COLUMN barcode TEXT DEFAULT ''");
+
+const DEFAULT_SETTINGS = {
+  name: 'Farmacia Durand',
+  slogan: 'Cuidamos tu salud, cerca tuyo',
+  about: 'Somos una farmacia familiar con más de 20 años acompañando a nuestra comunidad. Atención personalizada, profesionales farmacéuticos y los mejores productos de salud, belleza y bienestar.',
+  address: 'Av. Díaz Vélez 5101',
+  city: 'C1405 CABA, Buenos Aires',
+  phone: '+54 11 0000-0000',
+  whatsapp: '5491100000000',
+  email: 'contacto@farmaciadurand.com',
+  hours: 'Lunes a Viernes: 8:00 a 21:00\nSábados: 9:00 a 14:00\nDomingos y feriados: según turno',
+  services: 'Atención farmacéutica personalizada|Toma de presión arterial|Vacunación|Perfumería y dermocosmética|Obras sociales y prepagas|Envíos a domicilio',
+  instagram: 'https://www.instagram.com/farmaciadurand/',
+  facebook: 'https://www.facebook.com/FarmaciaDurand/',
+  tiktok: '',
+  color_primary: '#0f9d76',
+  color_accent: '#ff6f61',
+  logo: '',
+  hero_image: '',
+  shipping_fee: '2500',
+  free_shipping_from: '40000',
+  bank_holder: 'Farmacia Durand',
+  bank_cuit: '30-12345678-9',
+  bank_name: 'Banco Nación',
+  bank_cbu: '0110000000000000000000',
+  bank_alias: 'FARMACIA.DURAND',
+  qr_image: '',                // imagen de QR subida (ej. QR de Mercado Pago)
+  qr_text: '',                 // si no hay imagen, se genera un QR con este texto/link
+  maps_url: 'https://www.google.com/maps/place/farmacia+durand/data=!4m2!3m1!1s0x95bcca6ca194d707:0x1beb13e24f87d47d',
+  default_markup: '40',        // % de ganancia sobre costo para productos nuevos de facturas
+  price_rounding: '10',        // redondeo hacia arriba de precios calculados ($)
+  ml_seller_id: '',
+  ml_access_token: '',
+};
+
+const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
+for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) insertSetting.run(k, v);
+
+function getSettings() {
+  const rows = db.prepare('SELECT key, value FROM settings').all();
+  return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+}
+
+function setSettings(obj) {
+  const stmt = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
+  db.transaction(() => {
+    for (const [k, v] of Object.entries(obj)) {
+      if (k in DEFAULT_SETTINGS) stmt.run(k, v == null ? '' : String(v));
+    }
+  })();
+}
+
+// Costo total unitario = (costo + envío) * (1 + IVA)
+function unitTotalCost(p) {
+  return round2((Number(p.cost) + Number(p.shipping_cost)) * (1 + Number(p.iva_rate) / 100));
+}
+
+function round2(n) {
+  return Math.round(Number(n) * 100) / 100;
+}
+
+function parseProduct(p) {
+  if (!p) return p;
+  return { ...p, images: JSON.parse(p.images || '[]'), requires_prescription: !!p.requires_prescription, featured: !!p.featured, active: !!p.active };
+}
+
+function recordStock(productId, delta, stockAfter, reason, ref = null) {
+  db.prepare('INSERT INTO stock_movements (product_id, delta, stock_after, reason, ref) VALUES (?, ?, ?, ?, ?)').run(productId, delta, stockAfter, reason, ref);
+}
+
+function recordPrice(productId, price, cost) {
+  db.prepare('INSERT INTO price_history (product_id, price, cost) VALUES (?, ?, ?)').run(productId, price, cost);
+}
+
+module.exports = { db, getSettings, setSettings, unitTotalCost, round2, parseProduct, recordStock, recordPrice, DEFAULT_SETTINGS };
