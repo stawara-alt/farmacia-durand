@@ -215,7 +215,7 @@ const DEFAULT_SETTINGS = {
   address: 'Av. Díaz Vélez 5115',
   city: 'C1405 CABA, Buenos Aires',
   phone: '011 5833-7916',
-  whatsapp: '5491100000000',
+  whatsapp: '5491124789699',     // +54 9 11 2478-9699
   email: 'contacto@farmaciadurand.com',
   hours: 'Lunes a viernes: 8:00 a 20:30\nSábados: 9:00 a 20:30\nDomingos: cerrado',
   services: 'Vacunación|Obras sociales y prepagas|Maquillaje|Cosmética y perfumería|Atención farmacéutica|Envíos a domicilio',
