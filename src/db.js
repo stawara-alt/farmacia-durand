@@ -249,7 +249,7 @@ const DEFAULT_SETTINGS = {
   ]),
   default_markup: '40',        // % de ganancia sobre costo para productos nuevos de facturas
   price_rounding: '10',        // redondeo hacia arriba de precios calculados ($)
-  ml_seller_id: '',
+  ml_seller_id: '614432576',  // cuenta de Mercado Libre de la farmacia (listado.mercadolibre.com.ar/_CustId_614432576)
   ml_access_token: '',
 };
 
