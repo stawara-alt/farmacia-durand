@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reclamos y devoluciones | Farmacia</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@600;700&display=swap">
+  <link rel="stylesheet" href="/css/styles.css">
+  <style>
+    .claim-grid { display: grid; grid-template-columns: 1.4fr .9fr; gap: 20px; align-items: start; }
+    .reasons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .photo-prev { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .photo-prev img { width: 72px; height: 72px; object-fit: cover; border-radius: 10px; border: 1.5px solid var(--line); }
+    .wa-card { background: #e9fbf0; border-radius: 22px; padding: 24px; }
+    .wa-card .big { font-family: Poppins, sans-serif; font-size: 1.4rem; font-weight: 700; margin: 6px 0 14px; }
+    .regret-note { background: #fff7e6; border-radius: 12px; padding: 12px 14px; font-size: .92rem; margin-bottom: 14px; }
+    @media (max-width: 800px) { .claim-grid, .reasons { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header class="site">
+    <div class="container"><a href="/" class="brand" id="brand"></a><a href="/" class="btn btn-ghost btn-sm" style="margin-left:auto">Volver a la tienda</a></div>
+  </header>
+  <main class="container track-wrap">
+    <div class="claim-grid">
+      <div id="app"></div>
+      <aside class="wa-card" id="wa-card"></aside>
+    </div>
+  </main>
+  <script src="/js/common.js"></script>
+  <script>
+    let S = {};
+    const q = new URLSearchParams(location.search);
+    let regret = q.get('tipo') === 'arrepentimiento';
+    const REASONS = [['roto', '📦 Llegó roto o dañado'], ['equivocado', '🔄 Llegó un producto equivocado'], ['faltante', '➖ Faltó un producto'], ['vencido', '⏳ Vencido o en mal estado'], ['otro', '💬 Otro problema']];
+    const waNum = () => String(S.owner_phone || S.whatsapp || '').replace(/\D/g, '');
+
+    function stepCheck(err = '') {
+      $('#app').innerHTML = `<div class="track-card">
+        <h1 style="font-size:1.7rem">${regret ? 'Botón de arrepentimiento' : 'Reclamos y devoluciones'}</h1>
+        ${regret ? `<div class="regret-note">Podés arrepentirte de tu compra dentro de los <b>${esc(S.claim_days || 10)} días</b> desde que la recibiste (Ley 24.240 de Defensa del Consumidor). Ingresá el número de pedido y el email con el que compraste.</div>`
+          : `<p class="muted">Si tu pedido llegó con algún problema, ingresá el <b>número de pedido</b> y el <b>código de llegada</b> que te enviamos por email cuando lo recibiste.</p>`}
+        ${err ? `<div class="error-box">${esc(err)}</div>` : ''}
+        <form id="f-check">
+          <div class="two">
+            <div class="field"><label>Número de pedido</label><input type="text" name="order_id" value="${esc(q.get('pedido') || '')}" placeholder="Ej: 1345" required inputmode="numeric"></div>
+            ${regret ? `<div class="field"><label>Email de la compra</label><input type="email" name="email" required></div>`
+              : `<div class="field"><label>Código de llegada</label><input type="text" name="arrival_code" value="${esc(q.get('codigo') || '')}" placeholder="Ej: ABC-DEF" required style="text-transform:uppercase"></div>`}
+          </div>
+          <button class="btn btn-primary">Continuar</button>
+        </form>
+        <p style="margin-bottom:0"><a href="#" id="toggle">${regret ? '¿Tu pedido llegó con un problema? Hacé un reclamo' : '¿Te arrepentiste de la compra? Usá el botón de arrepentimiento'}</a></p>
+      </div>`;
+      $('#toggle').onclick = (e) => { e.preventDefault(); regret = !regret; stepCheck(); };
+      $('#f-check').onsubmit = async (e) => {
+        e.preventDefault();
+        const body = Object.fromEntries(new FormData(e.target));
+        if (regret) body.type = 'arrepentimiento';
+        try { stepForm(await api('/api/claims/check', { method: 'POST', body }), body); }
+        catch (err) { stepCheck(err.message); }
+      };
+    }
+
+    function stepForm(info, auth) {
+      const open = info.claims.filter((c) => ['abierto', 'en_revision'].includes(c.status));
+      $('#app').innerHTML = `<div class="track-card">
+        <h2>Pedido #${info.order_id}</h2>
+        <p class="muted" style="margin-top:-6px">${esc(info.customer_name)} · ${info.items.map((i) => `${esc(i.name)} ×${i.qty}`).join(', ')}</p>
+        ${open.length ? `<div class="regret-note">Ya tenés ${open.length === 1 ? 'un reclamo abierto' : `${open.length} reclamos abiertos`} para este pedido (${open.map((c) => `#${c.id} ${esc(c.status_label)}`).join(', ')}). Podés hacer otro si es por un motivo distinto.</div>` : ''}
+        <div id="err"></div>
+        <form id="f-claim">
+          ${regret ? '<input type="hidden" name="type" value="arrepentimiento"><p><b>Motivo:</b> me arrepentí de la compra.</p>' : `<div class="field"><label>¿Qué pasó?</label><div class="reasons">
+            ${REASONS.map(([v, l], i) => `<label class="option"><input type="radio" name="type" value="${v}" ${i ? '' : 'checked'}> <span>${l}</span></label>`).join('')}</div></div>`}
+          <div class="field"><label>${regret ? 'Comentario (opcional)' : 'Contanos con detalle'}</label><textarea name="description" required placeholder="${regret ? 'Ej: ya no lo necesito' : 'Qué producto, qué le pasó, cómo llegó el paquete…'}">${regret ? 'Quiero arrepentirme de la compra.' : ''}</textarea></div>
+          <div class="field"><label>¿Qué preferís?</label><div class="options">
+            <label class="option"><input type="radio" name="resolution" value="cambio" ${regret ? '' : 'checked'}> <span>Cambio del producto</span></label>
+            <label class="option"><input type="radio" name="resolution" value="devolucion" ${regret ? 'checked' : ''}> <span>Devolución del dinero</span></label></div></div>
+          ${regret ? '' : `<div class="field"><label>Fotos (hasta 5)</label><input type="file" name="photos" accept="image/*" multiple><div class="photo-prev" id="prev"></div>
+            <small class="muted">Si llegó roto o equivocado, sacale fotos al producto y al paquete: nos ayuda a resolverlo más rápido.</small></div>`}
+          <div class="field"><label>Teléfono para contactarte</label><input type="tel" name="contact_phone" placeholder="Ej: 11 5555-5555"></div>
+          <button class="btn btn-primary" id="send">${regret ? 'Enviar arrepentimiento' : 'Enviar reclamo'}</button>
+        </form></div>`;
+      const fi = $('[name=photos]');
+      if (fi) fi.onchange = () => {
+        if (fi.files.length > 5) { toast('Podés subir hasta 5 fotos'); fi.value = ''; }
+        $('#prev').innerHTML = [...fi.files].map((f) => `<img src="${URL.createObjectURL(f)}" alt="">`).join('');
+      };
+      $('#f-claim').onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        fd.append('order_id', auth.order_id);
+        if (auth.arrival_code) fd.append('arrival_code', auth.arrival_code);
+        if (auth.email) fd.append('email', auth.email);
+        $('#send').disabled = true; $('#send').textContent = 'Enviando…';
+        try {
+          const r = await api('/api/claims', { method: 'POST', body: fd });
+          $('#app').innerHTML = `<div class="track-card center"><div style="font-size:3rem">✅</div><h2>Recibimos tu ${regret ? 'pedido de arrepentimiento' : 'reclamo'} #${r.id}</h2>
+            <p>Te enviamos un email de confirmación. Lo vamos a revisar y te respondemos a la brevedad.</p>
+            <a class="btn btn-primary" href="/pedido/${r.order_code}">Ver mi pedido</a></div>`;
+        } catch (err) {
+          $('#err').innerHTML = `<div class="error-box">${esc(err.message)}</div>`;
+          $('#send').disabled = false; $('#send').textContent = regret ? 'Enviar arrepentimiento' : 'Enviar reclamo';
+        }
+      };
+    }
+
+    (async () => {
+      S = await api('/api/settings');
+      applyTheme(S);
+      document.title = `Reclamos y devoluciones | ${S.name}`;
+      $('#brand').innerHTML = `${logoHTML(S)}<span>${esc(S.name)}</span>`;
+      const owner = S.owner_phone || S.whatsapp;
+      $('#wa-card').innerHTML = `<b>¿No tenés el código o preferís hablar?</b>
+        <p class="muted" style="margin:6px 0 0">Escribinos y lo resolvemos juntos.</p>
+        <div class="big">${esc(fmtPhone(owner))}</div>
+        <a class="btn btn-block" style="background:#25d366;color:#fff" target="_blank" rel="noopener" href="https://wa.me/${waNum()}?text=${encodeURIComponent('Hola! Tengo un problema con mi pedido' + (q.get('pedido') ? ' #' + q.get('pedido') : ''))}">${WA_SVG.replace('<svg', '<svg width="20" height="20"')} Escribir por WhatsApp</a>
+        <a class="btn btn-ghost btn-block" style="margin-top:10px" href="tel:${esc(S.phone)}">${icon('phone')} ${esc(S.phone)}</a>`;
+      stepCheck();
+      if (q.get('pedido') && q.get('codigo') && !regret) $('#f-check').requestSubmit();
+    })();
+  </script>
+</body>
+</html>

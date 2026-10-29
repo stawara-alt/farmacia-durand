@@ -5,6 +5,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { db, unitTotalCost } = require('../src/db');
+const { newArrivalCode } = require('../src/claims');
+const rules = require('../src/rules');
 
 const DIR = path.join(__dirname, '..', 'public', 'uploads', 'demo');
 fs.mkdirSync(DIR, { recursive: true });
@@ -49,7 +51,7 @@ const ts = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate()
 const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 
 db.transaction(() => {
-  db.exec('DELETE FROM purchase_items; DELETE FROM purchase_invoices; DELETE FROM supplier_codes; DELETE FROM order_status_history; DELETE FROM order_items; DELETE FROM orders; DELETE FROM stock_movements; DELETE FROM price_history; DELETE FROM products;');
+  db.exec('DELETE FROM claim_messages; DELETE FROM claims; DELETE FROM purchase_items; DELETE FROM purchase_invoices; DELETE FROM supplier_codes; DELETE FROM order_status_history; DELETE FROM order_items; DELETE FROM orders; DELETE FROM stock_movements; DELETE FROM price_history; DELETE FROM products;');
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth() - 12, 1, 9);
   const prods = P.map(([name, cat, brand, price, cost, stock, rx], i) => {
@@ -100,13 +102,18 @@ db.transaction(() => {
       const lines = items.map(({ p, q }) => { const ph = priceAt(p.id); return { p, q, price: ph.price, costTotal: unitTotalCost({ ...p, cost: ph.cost }) }; });
       const subtotal = lines.reduce((a, l) => a + l.price * l.q, 0);
       const envio = Math.random() < 0.6;
-      const ship = envio && subtotal < 40000 ? 2500 : 0;
+      const zones = rules.shippingZones().filter((z) => z.enabled);
+      const zone = zones[rnd(0, zones.length - 1)];
+      const place = zone.places[rnd(0, zone.places.length - 1)];
+      const ship = envio ? rules.shippingQuote(subtotal, place).fee : 0;
       const recent = m === 0 && d > new Date(now - 4 * 864e5);
       const status = recent ? ['pendiente', 'aceptado', 'en_preparacion', 'en_envio'][rnd(0, 3)] : Math.random() < 0.06 ? 'cancelado' : 'entregado';
       const name = names[rnd(0, names.length - 1)];
       const o = db.prepare(`INSERT INTO orders (code, customer_name, email, phone, delivery_method, address, city, payment_method, subtotal, shipping_fee, total, status, created_at, updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(crypto.randomBytes(12).toString('base64url'), name, name.toLowerCase().replace(/[^a-z]+/g, '.').replace(/[áéíóú]/g, '') + '@ejemplo.com', '11' + rnd(40000000, 69999999),
-        envio ? 'envio' : 'retiro', envio ? `Calle ${rnd(100, 5000)}` : '', envio ? 'CABA' : '', Math.random() < 0.55 ? 'transferencia' : 'qr', subtotal, ship, subtotal + ship, status, ts(d), ts(d));
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(crypto.randomBytes(12).toString('base64url'), name, name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]+/g, '.') + '@ejemplo.com', '11' + rnd(40000000, 69999999),
+        envio ? 'envio' : 'retiro', envio ? `Calle ${rnd(100, 5000)}` : '', envio ? place : '', Math.random() < 0.55 ? 'transferencia' : 'qr', subtotal, ship, subtotal + ship, status, ts(d), ts(d));
+      if (envio) db.prepare('UPDATE orders SET shipping_zone = ? WHERE id = ?').run(zone.name, o.lastInsertRowid);
+      if (status === 'entregado') db.prepare('UPDATE orders SET arrival_code = ?, delivered_at = ? WHERE id = ?').run(newArrivalCode(), ts(new Date(d.getTime() + 26 * 3600e3)), o.lastInsertRowid);
       for (const l of lines) {
         db.prepare('INSERT INTO order_items (order_id, product_id, name, image, unit_price, unit_cost_total, qty) VALUES (?,?,?,?,?,?,?)')
           .run(o.lastInsertRowid, l.p.id, l.p.name, JSON.parse(l.p.images)[0], l.price, l.costTotal, l.q);

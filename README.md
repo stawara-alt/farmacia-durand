@@ -31,7 +31,7 @@ Opcional: `npm run seed` carga 17 productos y un año de ventas de ejemplo para 
 - Portada con datos de la farmacia, servicios, horarios, mapa, redes (Instagram/Facebook/TikTok) y botón flotante de WhatsApp.
 - Catálogo con buscador, categorías, orden por precio y ficha de producto con galería de fotos.
 - Productos **bajo receta**: se muestran, pero en vez de comprarse online se consultan por WhatsApp.
-- Carrito → checkout con envío a domicilio o retiro en el local (costo de envío y "envío gratis desde $X" configurables).
+- Carrito → checkout con envío a domicilio **solo a las zonas habilitadas** (por defecto CABA, GBA 1er y 2do cordón, cada una con su costo y su "envío gratis desde") o retiro en el local.
 - Pago por **transferencia** (alias/CBU con botón de copiar) o **QR** (sube la imagen del QR de Mercado Pago/MODO o se genera uno automáticamente). El cliente puede subir el comprobante.
 
 ### Seguimiento del pedido
@@ -48,6 +48,7 @@ Opcional: `npm run seed` carga 17 productos y un año de ventas de ejemplo para 
 - **Estadísticas** (3/6/12/24 meses): ventas, costo y ganancia, pedidos, unidades, ticket promedio, stock al cierre de cada mes (en unidades y valorizado), ventas por categoría, más vendidos, y evolución de **precio, ventas y stock** de cada producto.
 - **Facturas de compra**: subís la factura del proveedor (PDF, foto o planilla) y se actualizan solos el **stock**, el **costo**, el **IVA**, el **flete** y el **precio de venta** de cada producto. Ver más abajo.
 - **Promociones**: anuncios y descuentos que se muestran en la tienda, se aplican al precio y se envían por email a los suscriptores. Ver más abajo.
+- **Reclamos**: reclamos post-compra con fotos y botón de arrepentimiento. Ver más abajo.
 - **Importar**: desde **Mercado Libre** (con access token) o desde **CSV/Excel**. También se pueden exportar los productos.
 - **Mensajes** del formulario de contacto.
 - **Configuración**: nombre, textos, dirección, horarios, teléfonos, redes, logo, foto de portada, **colores**, datos bancarios, QR y costos de envío.
@@ -59,6 +60,26 @@ Opcional: `npm run seed` carga 17 productos y un año de ventas de ejemplo para 
 3. En **Panel → Importar** pegá el token (y opcionalmente el seller_id) y tocá *Importar*. Se traen nombre, precio, stock, fotos, categoría, marca y descripción. Si volvés a importar, se actualizan precio, stock y fotos, pero **los costos que cargaste no se tocan**.
 
 Sin token: en Mercado Libre, *Publicaciones → Modificar en Excel*, guardá el archivo como CSV e importalo desde la misma pantalla.
+
+## Precio mínimo y costo de la página
+
+En **Costos y márgenes** cada producto muestra, además del costo total con IVA y flete:
+- **Costo de la página**: la parte del costo fijo mensual de la web (hosting, dominio, emails, lectura de facturas…) que le toca a cada unidad vendida, más el % de comisiones e impuestos sobre la venta (cobro con QR, Ingresos Brutos, etc.).
+- **Precio mínimo** = (costo total + costo fijo por unidad) ÷ (1 − % de comisiones). Por debajo de ese precio, cada venta pierde plata; se marcan en rojo.
+- **Ganancia neta** y **margen neto** después de todo eso.
+
+El precio mínimo también aparece en la calculadora, al editar un producto y al revisar una factura de compra; el detalle de cada pedido muestra la ganancia neta. Los valores se configuran en **Configuración → Costos de la página**. El costo fijo se reparte entre las unidades vendidas por mes (automático según los últimos 3 meses, o un número fijo).
+
+## Zonas de envío
+
+En **Configuración → Zonas de envío** se definen las zonas (nombre, costo, envío gratis desde y lista de localidades/partidos) y se pueden activar o desactivar según lo que se arregle con la logística. En el checkout el cliente elige su localidad de una lista; si no está, solo puede retirar en la farmacia (o consultar por WhatsApp). El servidor también lo valida.
+
+## Post-compra: código de llegada y reclamos
+
+- Al marcar un pedido como **Entregado**, el cliente recibe el email **"Tu pedido llegó"** con un **código de llegada** (ej. `GCM-SAS`), el botón para reclamar y el **WhatsApp de la dueña** (Configuración → Post-compra).
+- Con número de pedido + código de llegada, en `/reclamo` puede reclamar (llegó roto, equivocado, faltante, vencido u otro), pedir cambio o devolución y adjuntar hasta 5 fotos, dentro de los días configurados (10 por defecto). Sin código, la misma página le ofrece el WhatsApp.
+- **Botón de arrepentimiento** (obligatorio para tiendas online en Argentina, Res. 424/2020): en el pie de la web; se identifica con número de pedido + email de la compra.
+- En **Panel → Reclamos** la dueña ve fotos y conversación, cambia el estado (Nuevo / En revisión / Resuelto / Rechazado) y responde; el cliente recibe cada respuesta por email y la ve en la página de su pedido.
 
 ## Promociones y suscriptores
 
@@ -111,6 +132,8 @@ src/mailer.js        Plantillas y envío de emails
 src/mercadolibre.js  Importación desde Mercado Libre
 src/purchases.js     Facturas de compra (lectura, reconocimiento de productos y actualización)
 src/promotions.js    Promociones, descuentos, suscriptores y envío de emails
-public/              Tienda (index.html), seguimiento (pedido.html), panel (admin.html)
+src/claims.js        Código de llegada, reclamos y botón de arrepentimiento
+src/rules.js         Zonas de envío y precio mínimo (costo de la página)
+public/              Tienda (index.html), seguimiento (pedido.html), reclamos (reclamo.html), panel (admin.html)
 scripts/seed.js      Datos de ejemplo
 ```

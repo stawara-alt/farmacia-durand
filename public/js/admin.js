@@ -1,8 +1,12 @@
 let S = {};
 let PRODUCTS = [];
+let PC = { fixed_per_unit: 0, fee_pct: 0, fixed_monthly: 0, units_month: 0, units_source: '' }; // costo de la página
+// precio mínimo = (costo total + costo fijo por unidad) / (1 - comisiones%)
+const minPriceFor = (total) => (total + PC.fixed_per_unit) / Math.max(0.05, 1 - PC.fee_pct / 100);
+const pageCostFor = (price) => PC.fixed_per_unit + (price * PC.fee_pct) / 100;
 const charts = [];
 const SERIES = ['#2a78d6', '#eb6834', '#1baf7a']; // paleta categórica validada (orden fijo)
-const TABS = { resumen: 'Resumen', pedidos: 'Pedidos', productos: 'Productos y stock', compras: 'Facturas de compra', promos: 'Promociones', costos: 'Costos y márgenes', estadisticas: 'Estadísticas', importar: 'Importar productos', mensajes: 'Mensajes', config: 'Configuración' };
+const TABS = { resumen: 'Resumen', pedidos: 'Pedidos', productos: 'Productos y stock', compras: 'Facturas de compra', promos: 'Promociones', reclamos: 'Reclamos', costos: 'Costos y márgenes', estadisticas: 'Estadísticas', importar: 'Importar productos', mensajes: 'Mensajes', config: 'Configuración' };
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const fmtMonth = (m) => { const [y, mo] = m.split('-'); return `${MONTHS[+mo - 1]} ${y.slice(2)}`; };
 const fmtDate = (d) => new Date(d.replace(' ', 'T')).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' });
@@ -23,7 +27,7 @@ async function boot() {
 
 async function showApp() {
   $('#shell').classList.remove('hidden');
-  S = await api('/api/admin/settings');
+  [S, PC] = await Promise.all([api('/api/admin/settings'), api('/api/admin/page-cost')]);
   applyTheme(S);
   $('#a-brand').innerHTML = `${logoHTML(S)}<span>${esc(S.name)}</span>`;
   $$('#side-nav a').forEach((a) => (a.onclick = () => { location.hash = a.dataset.tab; $('#side').classList.remove('open'); }));
@@ -40,6 +44,7 @@ async function refreshBadges() {
     const d = await api('/api/admin/dashboard');
     $('#n-pend').textContent = d.pending || '';
     $('#n-msg').textContent = d.unread_messages || '';
+    $('#n-claims').textContent = d.open_claims || '';
     return d;
   } catch (e) { if (e.status === 401) location.reload(); }
 }
@@ -158,17 +163,21 @@ async function openOrder(id) {
     <div class="two">
       <div class="panel" style="box-shadow:none;border:1px solid var(--line)"><b>Cliente</b><br>${esc(o.customer_name)}<br><a href="mailto:${esc(o.email)}">${esc(o.email)}</a><br>
         ${o.phone ? `<a href="https://wa.me/${o.phone.replace(/\D/g, '')}" target="_blank">${esc(o.phone)}</a>` : ''}</div>
-      <div class="panel" style="box-shadow:none;border:1px solid var(--line)"><b>${o.delivery_method === 'envio' ? '🚚 Envío a domicilio' : '🏪 Retiro en local'}</b><br>${esc(o.address)} ${esc(o.city)}<br>
+      <div class="panel" style="box-shadow:none;border:1px solid var(--line)"><b>${o.delivery_method === 'envio' ? '🚚 Envío a domicilio' : '🏪 Retiro en local'}</b>${o.shipping_zone ? ` <span class="st st-aceptado">${esc(o.shipping_zone)}</span>` : ''}<br>${esc(o.address)}${o.city ? ', ' + esc(o.city) : ''}<br>
         <b>Pago:</b> ${o.payment_method === 'qr' ? 'QR' : 'Transferencia'}<br>
         ${o.receipt ? `<a href="/api/admin/receipts/${esc(o.receipt)}" target="_blank" class="btn btn-ghost btn-sm" style="margin-top:6px">📎 Ver comprobante</a>` : '<span class="muted">Sin comprobante aún</span>'}</div>
     </div>
     ${o.notes ? `<div class="help" style="margin-bottom:12px"><b>Nota del cliente:</b> ${esc(o.notes)}</div>` : ''}
+    ${o.arrival_code ? `<div class="help" style="margin-bottom:12px">📬 Entregado el ${fmtDate(o.delivered_at)} · código de llegada <b style="letter-spacing:2px">${esc(o.arrival_code)}</b></div>` : ''}
+    ${o.claims.length ? `<div class="error-box" style="font-weight:600">⚠️ Reclamos: ${o.claims.map((c) => `<a href="#reclamos" data-claim="${c.id}">#${c.id} ${esc(c.type_label)} (${esc(c.status_label)})</a>`).join(' · ')}</div>` : ''}
     <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Producto</th><th class="num">Cant.</th><th class="num">Precio</th><th class="num">Costo total</th><th class="num">Subtotal</th></tr></thead><tbody>
       ${o.items.map((i) => `<tr><td>${esc(i.name)}</td><td class="num">${i.qty}</td><td class="num">${money(i.unit_price)}</td><td class="num muted">${money(i.unit_cost_total)}</td><td class="num">${money(i.unit_price * i.qty)}</td></tr>`).join('')}
     </tbody><tfoot>
       <tr><td colspan="4">Envío cobrado</td><td class="num">${money(o.shipping_fee)}</td></tr>
       <tr><td colspan="4">Total cobrado</td><td class="num">${money(o.total)}</td></tr>
-      <tr><td colspan="4">Ganancia estimada (productos − costo c/IVA y envío)</td><td class="num ${profit >= 0 ? 'pos' : 'neg'}">${money(profit)}</td></tr>
+      <tr><td colspan="4">Ganancia bruta (productos − costo c/IVA y envío)</td><td class="num ${profit >= 0 ? 'pos' : 'neg'}">${money(profit)}</td></tr>
+      <tr><td colspan="4">Costo de la página (comisiones + parte del costo fijo, estimado)</td><td class="num neg">− ${money(o.page_cost)}</td></tr>
+      <tr><td colspan="4">Ganancia neta estimada</td><td class="num ${profit - o.page_cost >= 0 ? 'pos' : 'neg'}">${money(profit - o.page_cost)}</td></tr>
     </tfoot></table></div>
 
     <div class="panel" style="box-shadow:none;border:2px solid var(--primary);margin-top:16px">
@@ -176,10 +185,12 @@ async function openOrder(id) {
       <div class="filters">${[...flow, 'rechazado', 'cancelado'].map((s) => `<label class="chip-f" style="display:flex;gap:6px"><input type="radio" name="st" value="${s}" ${s === o.status ? 'checked' : ''}>${STATUS_LABELS[s]}</label>`).join('')}</div>
       <div class="field"><label>Mensaje para el cliente (opcional)</label><textarea id="st-note" style="min-height:60px" placeholder="Ej: Tu pedido sale hoy entre las 16 y 18 hs."></textarea></div>
       <label style="display:flex;gap:8px;align-items:center;margin-bottom:12px;font-weight:700"><input type="checkbox" id="st-notify" checked> Avisar al cliente por email</label>
+      <p class="muted" style="margin-top:-4px;font-size:.88rem">Al marcarlo como <b>Entregado</b>, el cliente recibe el email "Tu pedido llegó" con su <b>código de llegada</b>, el link para reclamar y tu WhatsApp.</p>
       <button class="btn btn-primary" id="st-save">Guardar estado</button>
     </div>
     <h3>Historial</h3>
     <ul class="timeline">${[...o.history].reverse().map((h) => `<li><b>${STATUS_LABELS[h.status] || h.status}</b> <span class="muted">· ${fmtDate(h.created_at)}</span>${h.note ? `<br>${esc(h.note)}` : ''}</li>`).join('')}</ul>`, true);
+  $$('[data-claim]', $('#layer')).forEach((el) => (el.onclick = (e) => { e.preventDefault(); close(); openClaim(el.dataset.claim); }));
   $('#st-save').onclick = async () => {
     const status = $('input[name=st]:checked').value;
     try {
@@ -278,10 +289,12 @@ function productForm(p) {
   };
   const calc = () => {
     const price = +f.price.value || 0, cost = +f.cost.value || 0, ship = +f.shipping_cost.value || 0, iva = +f.iva_rate.value || 0;
-    const ivaAmt = (cost + ship) * iva / 100, total = cost + ship + ivaAmt, margin = price - total;
+    const ivaAmt = (cost + ship) * iva / 100, total = cost + ship + ivaAmt, page = pageCostFor(price), margin = price - total - page, min = minPriceFor(total);
     $('#calc').innerHTML = `<div><span>IVA sobre costo</span><b>${money(ivaAmt)}</b></div><div><span>Costo total c/IVA</span><b>${money(total)}</b></div>
-      <div><span>Ganancia por unidad</span><b class="${margin >= 0 ? 'pos' : 'neg'}">${money(margin)}</b></div>
-      <div><span>Margen s/ venta</span><b>${price ? pct((margin / price) * 100) : '—'}</b></div><div><span>Markup s/ costo</span><b>${total ? pct((margin / total) * 100) : '—'}</b></div>`;
+      <div><span>Precio mínimo</span><b class="${price && price < min ? 'neg' : ''}">${money(min)}</b>${price && price < min ? '<br><small class="neg">el precio no cubre los costos</small>' : ''}</div>
+      <div><span>Costo de la página</span><b>${money(page)}</b></div>
+      <div><span>Ganancia neta por unidad</span><b class="${margin >= 0 ? 'pos' : 'neg'}">${money(margin)}</b></div>
+      <div><span>Margen neto s/ venta</span><b>${price ? pct((margin / price) * 100) : '—'}</b></div>`;
   };
   renderImgs(); calc();
   ['price', 'cost', 'shipping_cost', 'iva_rate'].forEach((n) => (f[n].oninput = calc));
@@ -433,6 +446,59 @@ function promoSend(p, subscribers) {
   };
 }
 
+// ---------- reclamos post-compra ----------
+const CLAIM_ST = { abierto: ['Nuevo', 'st-pendiente'], en_revision: ['En revisión', 'st-aceptado'], resuelto: ['Resuelto', 'st-entregado'], rechazado: ['Rechazado', 'st-cancelado'] };
+const claimBadge = (s) => `<span class="st ${CLAIM_ST[s]?.[1] || ''}">${CLAIM_ST[s]?.[0] || s}</span>`;
+
+VIEWS.reclamos = async () => {
+  $('#view').innerHTML = `<div class="page-head"><h1>Reclamos y devoluciones</h1></div>
+    <div class="help" style="margin-bottom:16px">Cuando marcás un pedido como <b>Entregado</b>, el cliente recibe un <b>código de llegada</b>. Con ese código (dentro de los ${esc(S.claim_days || 10)} días) puede hacer un reclamo desde la web, con fotos. También está el <b>botón de arrepentimiento</b> que pide la ley. Si no tiene el código, se comunica por WhatsApp al ${esc(fmtPhone(S.owner_phone || S.whatsapp))}.</div>
+    <div class="filters">${[['', 'Todos'], ['abierto', 'Nuevos'], ['en_revision', 'En revisión'], ['resuelto', 'Resueltos'], ['rechazado', 'Rechazados']].map(([v, l]) => `<button class="chip-f ${v ? '' : 'active'}" data-cst="${v}">${l}</button>`).join('')}</div>
+    <div class="panel" id="cl-list"></div>`;
+  let st = '';
+  const load = async () => {
+    const list = await api('/api/admin/claims' + (st ? `?status=${st}` : ''));
+    $('#cl-list').innerHTML = list.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>#</th><th>Fecha</th><th>Pedido</th><th>Cliente</th><th>Motivo</th><th>Estado</th></tr></thead><tbody>
+      ${list.map((c) => `<tr class="click" data-claim="${c.id}"><td><b>${c.id}</b></td><td>${fmtDate(c.created_at)}</td><td>#${c.order_id}</td><td>${esc(c.customer_name)}</td><td>${c.type === 'arrepentimiento' ? '↩️ ' : ''}${esc(c.type_label)}</td><td>${claimBadge(c.status)}</td></tr>`).join('')}
+      </tbody></table></div>` : '<p class="muted">No hay reclamos para mostrar. 🎉</p>';
+    $$('[data-claim]').forEach((r) => (r.onclick = () => openClaim(r.dataset.claim)));
+  };
+  $$('[data-cst]').forEach((b) => (b.onclick = () => { st = b.dataset.cst; $$('[data-cst]').forEach((x) => x.classList.toggle('active', x === b)); load(); }));
+  VIEWS.reclamos.reload = load;
+  await load();
+};
+
+async function openClaim(id) {
+  const c = await api('/api/admin/claims/' + id);
+  const close = openModal(`<h2>Reclamo #${c.id} ${claimBadge(c.status)}</h2>
+    <p class="muted" style="margin-top:-6px">${fmtDate(c.created_at)} · pedido <a href="#" id="cl-order">#${c.order_id}</a> (${money(c.total)}) ${c.delivered_at ? `· entregado ${fmtDate(c.delivered_at)}` : '· sin entregar'}</p>
+    <div class="two">
+      <div class="panel" style="box-shadow:none;border:1px solid var(--line)"><b>Cliente</b><br>${esc(c.customer_name)}<br><a href="mailto:${esc(c.email)}">${esc(c.email)}</a><br>
+        ${[c.contact_phone, c.phone].filter(Boolean).map((t) => `<a href="https://wa.me/${t.replace(/\D/g, '')}" target="_blank">WhatsApp ${esc(t)}</a>`).join('<br>')}</div>
+      <div class="panel" style="box-shadow:none;border:1px solid var(--line)"><b>${esc(c.type_label)}</b><br>Pide: <b>${esc(c.resolution_label || '—')}</b><br>
+        <small class="muted">${c.items.map((i) => `${esc(i.name)} ×${i.qty}`).join(', ')}</small></div>
+    </div>
+    ${c.photos.length ? `<div class="img-list" style="margin-bottom:14px">${c.photos.map((f) => `<a class="im" href="/api/admin/claims-photo/${esc(f)}" target="_blank"><img src="/api/admin/claims-photo/${esc(f)}" alt="Foto del reclamo" style="object-fit:cover"></a>`).join('')}</div>` : ''}
+    <h3>Conversación</h3>
+    <ul class="timeline">${c.messages.map((m) => `<li><b>${m.author === 'cliente' ? esc(c.customer_name) : 'Farmacia'}</b> ${m.author === 'farmacia' ? claimBadge(m.status) : ''} <span class="muted">· ${fmtDate(m.created_at)}</span>${m.message ? `<br><span style="white-space:pre-wrap">${esc(m.message)}</span>` : ''}</li>`).join('')}</ul>
+    <div class="panel" style="box-shadow:none;border:2px solid var(--primary)">
+      <h3>Responder</h3>
+      <div class="filters">${Object.entries(CLAIM_ST).map(([v, [l]]) => `<label class="chip-f" style="display:flex;gap:6px"><input type="radio" name="cst" value="${v}" ${v === c.status ? 'checked' : ''}>${l}</label>`).join('')}</div>
+      <div class="field"><label>Mensaje para el cliente</label><textarea id="cl-msg" style="min-height:80px" placeholder="Ej: Te pedimos disculpas. Mañana pasamos a retirar el producto y te llevamos uno nuevo."></textarea></div>
+      <label style="display:flex;gap:8px;align-items:center;margin-bottom:12px;font-weight:700"><input type="checkbox" id="cl-notify" checked> Enviar por email al cliente</label>
+      <button class="btn btn-primary" id="cl-save">Guardar</button>
+    </div>
+    <p class="muted" style="font-size:.88rem">Si acordás una devolución de dinero, hacé la transferencia y dejalo escrito acá. Si el producto vuelve al stock, sumalo desde Productos.</p>`, true);
+  $('#cl-order').onclick = (e) => { e.preventDefault(); close(); openOrder(c.order_id); };
+  $('#cl-save').onclick = async () => {
+    try {
+      await api(`/api/admin/claims/${c.id}`, { method: 'PATCH', body: { status: $('input[name=cst]:checked').value, message: $('#cl-msg').value, notify: $('#cl-notify').checked } });
+      toast('Reclamo actualizado ✓'); close(); refreshBadges();
+      if (location.hash === '#reclamos' && VIEWS.reclamos.reload) VIEWS.reclamos.reload();
+    } catch (e) { toast(e.message); }
+  };
+}
+
 // ---------- facturas de compra ----------
 VIEWS.compras = async () => {
   const list = await api('/api/admin/purchases');
@@ -534,7 +600,7 @@ async function reviewInvoice(data) {
         <td class="num"><input type="number" step="0.01" min="0" data-f="unit_cost" data-i="${i}" value="${it.unit_cost}" style="width:92px">${r ? `<br>${r.old_cost != null ? `<small class="muted">antes ${money(r.old_cost)}</small> ${delta(r.old_cost, r.unit_cost)}` : ''}` : ''}</td>
         <td><select data-f="iva_rate" data-i="${i}" style="width:66px">${[0, 10.5, 21, 27].map((v) => `<option ${Number(it.iva_rate) === v ? 'selected' : ''}>${v}</option>`).join('')}</select></td>
         <td class="num">${r ? `<b>${money(r.new_total_cost)}</b>${r.freight_unit ? `<br><small class="muted">incl. flete ${money(r.freight_unit)}</small>` : ''}` : ''}</td>
-        <td class="num">${r ? `<b>${money(r.new_price)}</b>${r.old_price != null ? `<br><small class="muted">antes ${money(r.old_price)}</small> ${delta(r.old_price, r.new_price)}` : ''}` : ''}</td>
+        <td class="num">${r ? `<b class="${r.new_price < r.min_price ? 'neg' : ''}">${money(r.new_price)}</b><br><small class="${r.new_price < r.min_price ? 'neg' : 'muted'}">mín. ${money(r.min_price)}</small>${r.old_price != null ? `<br><small class="muted">antes ${money(r.old_price)}</small> ${delta(r.old_price, r.new_price)}` : ''}` : ''}</td>
         <td class="num ${r && r.new_margin_pct < 15 ? 'neg' : ''}">${r ? pct(r.new_margin_pct) : ''}</td>
         <td class="num">${r ? `${r.old_stock} → <b>${r.old_stock + r.qty}</b>` : ''}</td></tr>`;
     }).join('') + `<datalist id="rv-cats">${cats.map((c) => `<option value="${esc(c)}">`).join('')}</datalist>`;
@@ -636,9 +702,11 @@ async function openPurchase(id) {
 
 // ---------- costos ----------
 VIEWS.costos = async () => {
-  PRODUCTS = await api('/api/admin/products');
-  $('#view').innerHTML = `<div class="page-head"><h1>Costos y márgenes</h1></div>
-    <div class="help" style="margin-bottom:16px"><b>Costo total</b> = (costo del producto + costo de envío por unidad) × (1 + IVA). <b>Margen</b> = precio de venta − costo total. Editá los costos de cada producto desde <a href="#productos">Productos</a>.</div>
+  [PRODUCTS, PC] = await Promise.all([api('/api/admin/products'), api('/api/admin/page-cost')]);
+  $('#view').innerHTML = `<div class="page-head"><h1>Costos y márgenes</h1><a class="btn btn-ghost btn-sm" href="#config">Ajustar costos de la página</a></div>
+    <div class="help" style="margin-bottom:16px"><b>Costo total</b> = (costo + envío por unidad) × (1 + IVA).
+      <b>Costo de la página</b> = parte del costo fijo mensual de la web (${money(PC.fixed_monthly)} ÷ ${PC.units_month || 0} unidades/mes = ${money(PC.fixed_per_unit)} por unidad) + ${pct(PC.fee_pct)} de comisiones e impuestos sobre el precio.
+      <b>Precio mínimo</b> = el precio que cubre todo eso sin ganar ni perder: por debajo, cada venta pierde plata.</div>
     <div class="kpis" id="c-kpis"></div>
     <div class="panel"><h3>Calculadora de precio</h3>
       <div class="three" id="calc-in">
@@ -647,37 +715,48 @@ VIEWS.costos = async () => {
         <div class="field"><label>IVA (%)</label><select id="k-iva"><option>0</option><option>10.5</option><option selected>21</option><option>27</option></select></div>
         <div class="field"><label>Margen deseado sobre costo (%)</label><input type="number" id="k-mk" value="40"></div>
       </div><div class="calc" id="k-out"></div></div>
-    <div class="panel"><div class="filters"><input type="search" id="c-q" placeholder="Buscar…"><label class="chip-f" style="display:flex;gap:6px"><input type="checkbox" id="c-neg"> Solo margen bajo (&lt; 15%)</label></div>
-      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Producto</th><th class="num">Costo</th><th class="num">Envío</th><th class="num">IVA %</th><th class="num">IVA $</th><th class="num">Costo total</th><th class="num">Precio venta</th><th class="num">Ganancia</th><th class="num">Margen</th><th class="num">Markup</th><th class="num">Stock</th><th class="num">Stock valorizado</th></tr></thead>
+    <div class="panel"><div class="filters"><input type="search" id="c-q" placeholder="Buscar…">
+        <label class="chip-f" style="display:flex;gap:6px"><input type="checkbox" id="c-min"> Solo precio por debajo del mínimo</label>
+        <label class="chip-f" style="display:flex;gap:6px"><input type="checkbox" id="c-neg"> Solo margen bajo (&lt; 15%)</label></div>
+      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Producto</th><th class="num">Costo</th><th class="num">Envío</th><th class="num">IVA</th><th class="num">Costo total</th><th class="num">Costo página</th>
+        <th class="num">Precio mínimo</th><th class="num">Precio venta</th><th class="num">Ganancia neta</th><th class="num">Margen neto</th><th class="num">Stock</th><th class="num">Stock valorizado</th></tr></thead>
       <tbody id="c-body"></tbody><tfoot id="c-foot"></tfoot></table></div></div>`;
   const kcalc = () => {
     const c = +$('#k-cost').value || 0, s = +$('#k-ship').value || 0, iva = +$('#k-iva').value, mk = +$('#k-mk').value || 0;
-    const total = (c + s) * (1 + iva / 100), price = total * (1 + mk / 100);
-    $('#k-out').innerHTML = `<div><span>Costo total c/IVA</span><b>${money(total)}</b></div><div><span>Precio sugerido</span><b>${money(price)}</b></div><div><span>Ganancia por unidad</span><b>${money(price - total)}</b></div><div><span>Margen s/ venta</span><b>${price ? pct(((price - total) / price) * 100) : '—'}</b></div>`;
+    const total = (c + s) * (1 + iva / 100), price = total * (1 + mk / 100), min = minPriceFor(total), page = pageCostFor(price);
+    $('#k-out').innerHTML = `<div><span>Costo total c/IVA</span><b>${money(total)}</b></div><div><span>Precio mínimo</span><b>${money(min)}</b></div>
+      <div><span>Precio sugerido</span><b class="${price < min ? 'neg' : ''}">${money(price)}</b></div><div><span>Costo de la página</span><b>${money(page)}</b></div>
+      <div><span>Ganancia neta por unidad</span><b class="${price - total - page >= 0 ? 'pos' : 'neg'}">${money(price - total - page)}</b></div>
+      <div><span>Margen neto s/ venta</span><b>${price ? pct(((price - total - page) / price) * 100) : '—'}</b></div>`;
   };
   $$('#calc-in input, #calc-in select').forEach((i) => (i.oninput = kcalc)); kcalc();
   const all = PRODUCTS.filter((p) => p.active);
   const sum = (f) => all.reduce((a, p) => a + f(p), 0);
   const vCost = sum((p) => p.unit_total_cost * p.stock), vPrice = sum((p) => p.price * p.stock);
-  const avgMargin = all.length ? sum((p) => p.margin_pct) / all.length : 0;
+  const avgMargin = all.length ? sum((p) => (p.price ? (p.net_margin / p.price) * 100 : 0)) / all.length : 0;
+  const below = all.filter((p) => p.price < p.min_price).length;
   $('#c-kpis').innerHTML = `
+    <div class="kpi"><div class="lbl">Productos bajo el precio mínimo</div><div class="val ${below ? 'low' : 'pos'}">${below}</div><div class="sub">${below ? 'pierden plata en cada venta' : 'todos cubren sus costos'}</div></div>
+    <div class="kpi"><div class="lbl">Costo de la página por unidad</div><div class="val">${money(PC.fixed_per_unit)}</div><div class="sub">+ ${pct(PC.fee_pct)} del precio · ${PC.units_month} u./mes (${esc(PC.units_source)})</div></div>
+    <div class="kpi"><div class="lbl">Margen neto promedio</div><div class="val">${pct(avgMargin)}</div><div class="sub">después de costo de la página</div></div>
     <div class="kpi"><div class="lbl">Stock valorizado a costo</div><div class="val">${money(vCost)}</div><div class="sub">incluye IVA y envío</div></div>
-    <div class="kpi"><div class="lbl">Stock valorizado a precio de venta</div><div class="val">${money(vPrice)}</div></div>
-    <div class="kpi"><div class="lbl">Ganancia potencial del stock</div><div class="val pos">${money(vPrice - vCost)}</div></div>
-    <div class="kpi"><div class="lbl">Margen promedio</div><div class="val">${pct(avgMargin)}</div><div class="sub">sobre precio de venta</div></div>
-    <div class="kpi"><div class="lbl">IVA contenido en el stock</div><div class="val">${money(sum((p) => p.iva_amount * p.stock))}</div></div>`;
+    <div class="kpi"><div class="lbl">Stock a precio de venta</div><div class="val">${money(vPrice)}</div><div class="sub">IVA contenido: ${money(sum((p) => p.iva_amount * p.stock))}</div></div>`;
   const render = () => {
-    const q = $('#c-q').value.toLowerCase(), neg = $('#c-neg').checked;
-    const list = PRODUCTS.filter((p) => (!q || p.name.toLowerCase().includes(q)) && (!neg || p.margin_pct < 15));
-    $('#c-body').innerHTML = list.map((p) => `<tr><td><b>${esc(p.name)}</b>${p.cost ? '' : ' <span class="st st-pendiente">sin costo cargado</span>'}</td>
-      <td class="num">${money(p.cost)}</td><td class="num">${money(p.shipping_cost)}</td><td class="num">${p.iva_rate}%</td><td class="num">${money(p.iva_amount)}</td>
-      <td class="num"><b>${money(p.unit_total_cost)}</b></td><td class="num">${money(p.price)}</td>
-      <td class="num ${p.margin >= 0 ? 'pos' : 'neg'}">${money(p.margin)}</td><td class="num ${p.margin_pct < 15 ? 'neg' : ''}">${pct(p.margin_pct)}</td><td class="num">${pct(p.markup_pct)}</td>
-      <td class="num">${p.stock}</td><td class="num">${money(p.unit_total_cost * p.stock)}</td></tr>`).join('');
+    const q = $('#c-q').value.toLowerCase(), neg = $('#c-neg').checked, low = $('#c-min').checked;
+    const list = PRODUCTS.filter((p) => (!q || p.name.toLowerCase().includes(q)) && (!neg || p.margin_pct < 15) && (!low || p.price < p.min_price));
+    $('#c-body').innerHTML = list.map((p) => {
+      const under = p.price < p.min_price;
+      return `<tr class="${under ? 'under' : ''}"><td><b>${esc(p.name)}</b>${p.cost ? '' : ' <span class="st st-pendiente">sin costo cargado</span>'}${under ? ' <span class="st st-cancelado">bajo el mínimo</span>' : ''}</td>
+      <td class="num">${money(p.cost)}</td><td class="num">${money(p.shipping_cost)}</td><td class="num">${p.iva_rate}%<br><small class="muted">${money(p.iva_amount)}</small></td>
+      <td class="num"><b>${money(p.unit_total_cost)}</b></td><td class="num">${money(p.page_cost)}</td>
+      <td class="num"><b>${money(p.min_price)}</b></td><td class="num ${under ? 'neg' : ''}"><b>${money(p.price)}</b></td>
+      <td class="num ${p.net_margin >= 0 ? 'pos' : 'neg'}">${money(p.net_margin)}</td><td class="num ${p.price && p.net_margin / p.price < 0.15 ? 'neg' : ''}">${p.price ? pct((p.net_margin / p.price) * 100) : '—'}</td>
+      <td class="num">${p.stock}</td><td class="num">${money(p.unit_total_cost * p.stock)}</td></tr>`;
+    }).join('');
     const t = (f) => list.reduce((a, p) => a + f(p), 0);
     $('#c-foot').innerHTML = `<tr><td>Total (${list.length})</td><td colspan="9"></td><td class="num">${t((p) => p.stock)}</td><td class="num">${money(t((p) => p.unit_total_cost * p.stock))}</td></tr>`;
   };
-  $('#c-q').oninput = render; $('#c-neg').onchange = render; render();
+  $('#c-q').oninput = render; $('#c-neg').onchange = render; $('#c-min').onchange = render; render();
 };
 
 // ---------- estadísticas ----------
@@ -840,7 +919,16 @@ VIEWS.config = async () => {
       <div class="three">${inp('instagram', 'Instagram', 'url')}${inp('facebook', 'Facebook', 'url')}${inp('tiktok', 'TikTok', 'url')}</div></div>
     <div class="panel"><h3>Precios automáticos (facturas de compra)</h3><div class="two">${inp('default_markup', 'Ganancia por defecto sobre el costo (%)', 'number')}${inp('price_rounding', 'Redondear precios hacia arriba a múltiplos de ($)', 'number')}</div>
       <p class="muted">Se usa para productos nuevos que llegan en una factura, o cuando elegís "aplicar un margen" al cargarla.</p></div>
-    <div class="panel"><h3>Envíos</h3><div class="two">${inp('shipping_fee', 'Costo de envío al cliente ($)', 'number')}${inp('free_shipping_from', 'Envío gratis desde ($, 0 = nunca)', 'number')}</div></div>
+    <div class="panel"><div class="page-head" style="margin-bottom:6px"><h3 style="margin:0">Zonas de envío</h3><button type="button" class="btn btn-ghost btn-sm" id="z-add">+ Agregar zona</button></div>
+      <p class="muted" style="margin-top:0">Solo se puede elegir envío a domicilio para las localidades de las zonas activas; el resto puede retirar en la farmacia. Cambialas según lo que arregles con la logística.</p>
+      <div id="zones"></div></div>
+    <div class="panel"><h3>Costos de la página (para el precio mínimo)</h3>
+      <div class="three">${inp('page_fixed_monthly', 'Costos fijos de la web por mes ($)', 'number')}${inp('page_fee_pct', 'Comisiones e impuestos sobre la venta (%)', 'number')}${inp('page_units_month', 'Unidades vendidas por mes (0 = automático)', 'number')}</div>
+      <p class="muted">Costos fijos: hosting, dominio, servicio de emails, lectura de facturas, etc. Comisiones: cobro con QR/billetera, Ingresos Brutos y otros impuestos que se calculan sobre el precio.
+        El costo fijo se reparte entre las unidades vendidas: hoy son <b>${PC.units_month}</b> por mes (${esc(PC.units_source)}), o sea <b>${money(PC.fixed_per_unit)} por unidad</b>.</p></div>
+    <div class="panel"><h3>Post-compra y reclamos</h3>
+      <div class="two">${inp('owner_phone', 'Celular / WhatsApp de la dueña para reclamos (con 549)')}${inp('claim_days', 'Días para reclamar después de la entrega', 'number')}</div>
+      <p class="muted">Este número aparece en el email "Tu pedido llegó", en la página del pedido y en la de reclamos. Si lo dejás vacío se usa el WhatsApp de la farmacia. La ley de Defensa del Consumidor da 10 días para arrepentirse de una compra online.</p></div>
     <div class="panel"><h3>Cobros: transferencia y QR</h3>
       <div class="two">${inp('bank_holder', 'Titular')}${inp('bank_cuit', 'CUIT')}${inp('bank_name', 'Banco / billetera')}${inp('bank_cbu', 'CBU / CVU')}${inp('bank_alias', 'Alias')}</div>
       <div class="two">${img('qr_image', 'Imagen del QR de cobro (ej. QR de Mercado Pago)')}
@@ -854,9 +942,34 @@ VIEWS.config = async () => {
     toast('Imagen actualizada ✓'); route();
   }));
   $$('[data-clear]').forEach((b) => (b.onclick = async () => { await api('/api/admin/settings', { method: 'PUT', body: { [b.dataset.clear]: '' } }); route(); }));
+  // ----- editor de zonas de envío -----
+  let zones = [];
+  try { zones = JSON.parse(S.shipping_zones || '[]'); } catch {}
+  const renderZones = () => {
+    $('#zones').innerHTML = zones.map((z, i) => `<div class="zone ${z.enabled ? '' : 'off'}">
+      <div class="zone-head"><input type="text" data-z="${i}" data-k="name" value="${esc(z.name)}" placeholder="Nombre de la zona">
+        <label><input type="checkbox" data-z="${i}" data-k="enabled" ${z.enabled ? 'checked' : ''}> Activa</label>
+        <button type="button" class="btn btn-light btn-sm" data-zdel="${i}">Quitar</button></div>
+      <div class="two"><div class="field"><label>Costo de envío ($)</label><input type="number" min="0" data-z="${i}" data-k="fee" value="${z.fee}"></div>
+        <div class="field"><label>Envío gratis desde ($, 0 = nunca)</label><input type="number" min="0" data-z="${i}" data-k="free_from" value="${z.free_from}"></div></div>
+      <div class="field"><label>Localidades / partidos (uno por línea)</label><textarea data-z="${i}" data-k="places" rows="4">${esc((z.places || []).join('\n'))}</textarea></div></div>`).join('') || '<p class="muted">Sin zonas: solo retiro en la farmacia.</p>';
+    $$('#zones [data-z]').forEach((el) => (el.onchange = () => {
+      const z = zones[el.dataset.z], k = el.dataset.k;
+      z[k] = k === 'enabled' ? el.checked : k === 'places' ? el.value.split('\n').map((x) => x.trim()).filter(Boolean) : ['fee', 'free_from'].includes(k) ? Number(el.value) || 0 : el.value;
+      if (k === 'enabled') renderZones();
+    }));
+    $$('#zones [data-zdel]').forEach((b) => (b.onclick = () => { if (confirm(`¿Quitar la zona "${zones[b.dataset.zdel].name}"?`)) { zones.splice(+b.dataset.zdel, 1); renderZones(); } }));
+  };
+  $('#z-add').onclick = () => { zones.push({ name: 'Nueva zona', fee: 0, free_from: 0, enabled: true, places: [] }); renderZones(); };
+  renderZones();
+
   $('#cfg').onsubmit = async (e) => {
     e.preventDefault();
-    S = await api('/api/admin/settings', { method: 'PUT', body: Object.fromEntries(new FormData(e.target)) });
+    const body = Object.fromEntries(new FormData(e.target));
+    for (const k of Object.keys(body)) if (k === '') delete body[k];
+    body.shipping_zones = zones;
+    try { S = await api('/api/admin/settings', { method: 'PUT', body }); } catch (err) { toast(err.message); return; }
+    PC = await api('/api/admin/page-cost');
     applyTheme(S);
     toast('Configuración guardada ✓');
   };

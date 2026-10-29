@@ -7,7 +7,11 @@
   <meta name="robots" content="noindex">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@600;700&display=swap">
   <link rel="stylesheet" href="/css/styles.css">
-  <style>.sub-card { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; background: var(--primary-soft); }</style>
+  <style>.sub-card { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; background: var(--primary-soft); }.arrived { display: flex; justify-content: space-between; gap: 18px; flex-wrap: wrap; align-items: center; border: 2px dashed var(--primary); }
+    .acode { font-family: Poppins, sans-serif; font-size: 2rem; font-weight: 700; letter-spacing: 3px; }
+    .arrived-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .arrived-actions b { width: 100%; }
+  </style>
 </head>
 <body>
   <header class="site">
@@ -36,9 +40,10 @@
       let o;
       try { o = await api('/api/orders/' + code); }
       catch { $('#app').innerHTML = '<div class="track-card center"><h2>Pedido no encontrado</h2><p class="muted">Revisá el link que te enviamos por email.</p></div>'; return; }
-      if (o.status === lastStatus && o.history.length === lastHist) return;
+      const sig = o.history.length + '|' + o.claims.map((c) => c.status).join(',');
+      if (o.status === lastStatus && sig === lastHist) return;
       if (lastStatus && o.status !== lastStatus) toast('🔔 Tu pedido cambió de estado: ' + STATUS_LABELS[o.status]);
-      lastStatus = o.status; lastHist = o.history.length;
+      lastStatus = o.status; lastHist = sig;
       render(o);
     }
 
@@ -63,6 +68,15 @@
           <p style="font-size:1.1rem;margin:18px 0 0"><b>${MSG[o.status] || ''}</b></p>
         </div>
 
+        ${o.arrival_code ? `<div class="track-card arrived">
+          <div><span class="muted">Código de llegada</span><div class="acode">${esc(o.arrival_code)}</div>
+            <small class="muted">Entregado el ${new Date(o.delivered_at.replace(' ', 'T')).toLocaleDateString('es-AR')}${o.claim_until ? ` · podés reclamar hasta el ${o.claim_until.split('-').reverse().join('/')}` : ''}</small></div>
+          <div class="arrived-actions"><b>¿Llegó algo roto o hubo un error?</b>
+            <a class="btn btn-primary btn-sm" href="/reclamo?pedido=${o.id}&codigo=${encodeURIComponent(o.arrival_code)}">Iniciar reclamo</a>
+            <a class="btn btn-sm" style="background:#25d366;color:#fff" target="_blank" rel="noopener" href="https://wa.me/${String(o.owner_phone || '').replace(/\D/g, '')}?text=${encodeURIComponent('Hola! Tengo un problema con mi pedido #' + o.id)}">WhatsApp ${esc(fmtPhone(o.owner_phone))}</a></div>
+        </div>` : ''}
+        ${o.claims.length ? `<div class="track-card"><h3>Tus reclamos</h3>${o.claims.map((c) => `<div class="copy-row"><span><b>#${c.id}</b> ${esc(c.type_label)}</span><span class="status-pill ${c.status === 'rechazado' ? 'bad' : ''}">${esc(c.status_label)}</span></div>`).join('')}
+          <p class="muted" style="margin-bottom:0">Te avisamos por email cada novedad.</p></div>` : ''}
         ${o.subscribed ? '' : `<div class="track-card sub-card" id="sub-card"><div><b>💌 ¿Querés enterarte de las promociones?</b><br><span class="muted">Te mandamos descuentos y novedades a tu email. Te podés dar de baja cuando quieras.</span></div>
           <button class="btn btn-primary" id="sub-btn">Suscribirme</button></div>`}
         ${showPay ? `<div class="track-card">
@@ -98,7 +112,7 @@
           <h3>Historial</h3>
           <ul class="timeline">${[...o.history].reverse().map((h) => `<li><b>${esc(STATUS_LABELS[h.status] || h.status)}</b> <span class="muted">· ${new Date(h.created_at.replace(' ', 'T')).toLocaleString('es-AR')}</span>${h.note ? `<br>${esc(h.note)}` : ''}</li>`).join('')}</ul>
         </div>
-        <p class="center muted">¿Dudas con tu pedido? <a href="https://wa.me/${(S.whatsapp || '').replace(/\D/g, '')}?text=${encodeURIComponent('Hola! Consulto por mi pedido #' + o.id)}" target="_blank" rel="noopener">Escribinos por WhatsApp</a> o llamanos al ${esc(S.phone)}.</p>`;
+        <p class="center muted">¿Dudas con tu pedido? <a href="https://wa.me/${String(o.owner_phone || '').replace(/\D/g, '')}?text=${encodeURIComponent('Hola! Consulto por mi pedido #' + o.id)}" target="_blank" rel="noopener">Escribinos por WhatsApp al ${esc(fmtPhone(o.owner_phone))}</a> o llamanos al ${esc(S.phone)}.</p>`;
 
       const sb = $('#sub-btn');
       if (sb) sb.onclick = async () => {
@@ -119,7 +133,7 @@
       applyTheme(S);
       $('#brand').innerHTML = `${logoHTML(S)}<span>${esc(S.name)}</span>`;
       $('#wa-float').innerHTML = WA_SVG;
-      $('#wa-float').href = `https://wa.me/${(S.whatsapp || '').replace(/\D/g, '')}`;
+      $('#wa-float').href = `https://wa.me/${String(S.owner_phone || S.whatsapp || '').replace(/\D/g, '')}`;
       await load();
       setInterval(load, 20000); // se actualiza solo cuando la farmacia cambia el estado
     })();

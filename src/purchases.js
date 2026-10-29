@@ -7,6 +7,7 @@ const multer = require('multer');
 const { z } = require('zod');
 const { db, getSettings, unitTotalCost, round2, recordStock, recordPrice } = require('./db');
 const { parseCSV, num } = require('./csv');
+const rules = require('./rules');
 
 const INVOICES = path.join(__dirname, '..', 'data', 'invoices');
 fs.mkdirSync(INVOICES, { recursive: true });
@@ -333,6 +334,7 @@ function register(admin) {
         ...l, new_total_cost: newTotal, new_price,
         old_cost: p ? p.cost : null, old_total_cost: p ? unitTotalCost(p) : null, old_price: p ? p.price : null, old_stock: p ? p.stock : 0,
         product_name: p ? p.name : null,
+        min_price: rules.minPrice(newTotal),
         new_margin_pct: new_price > 0 ? round2(((new_price - newTotal) / new_price) * 100) : 0,
       };
     });

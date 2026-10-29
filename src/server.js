@@ -12,6 +12,8 @@ const mailer = require('./mailer');
 const { fetchSellerProducts } = require('./mercadolibre');
 const { parseCSV, num } = require('./csv');
 const promotions = require('./promotions');
+const rules = require('./rules');
+const claims = require('./claims');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -101,17 +103,14 @@ function loadOrder(where, val) {
   return o;
 }
 
-function shippingFor(subtotal, method, s) {
-  if (method !== 'envio') return 0;
-  const free = Number(s.free_shipping_from || 0);
-  if (free > 0 && subtotal >= free) return 0;
-  return Number(s.shipping_fee || 0);
-}
 
 // ================= API PÚBLICA =================
 app.get('/api/settings', (_req, res) => {
   const s = getSettings();
-  delete s.ml_access_token; delete s.ml_seller_id;
+  // datos internos que no van a la web pública
+  for (const k of ['ml_access_token', 'ml_seller_id', 'page_fixed_monthly', 'page_fee_pct', 'page_units_month', 'default_markup', 'price_rounding', 'shipping_fee', 'free_shipping_from']) delete s[k];
+  s.shipping_zones = JSON.stringify(rules.shippingZones().filter((z) => z.enabled));
+  if (!s.owner_phone) s.owner_phone = s.whatsapp;
   res.json(s);
 });
 
@@ -145,6 +144,9 @@ app.post('/api/orders', (req, res) => {
   if (!['transferencia', 'qr'].includes(b.payment_method)) return res.status(400).json({ error: 'Elegí un medio de pago' });
   if (!['envio', 'retiro'].includes(b.delivery_method)) return res.status(400).json({ error: 'Elegí envío o retiro' });
   if (b.delivery_method === 'envio' && !String(b.address || '').trim()) return res.status(400).json({ error: 'Ingresá la dirección de envío' });
+  if (b.delivery_method === 'envio' && !rules.zoneFor(b.city, s)) {
+    return res.status(400).json({ error: `Por ahora no hacemos envíos a "${b.city || 'esa localidad'}". Podés elegir retiro en la farmacia o escribirnos por WhatsApp.` });
+  }
   if (!Array.isArray(b.items) || !b.items.length) return res.status(400).json({ error: 'El carrito está vacío' });
 
   try {
@@ -163,10 +165,11 @@ app.post('/api/orders', (req, res) => {
         lines.push({ p, qty, price });
       }
       subtotal = round2(subtotal);
-      const shipping = shippingFor(subtotal, b.delivery_method, s);
+      const quote = b.delivery_method === 'envio' ? rules.shippingQuote(subtotal, b.city, s) : null;
+      const shipping = quote ? quote.fee : 0;
       const code = crypto.randomBytes(12).toString('base64url');
-      const r = db.prepare(`INSERT INTO orders (code, customer_name, email, phone, delivery_method, address, city, notes, payment_method, subtotal, shipping_fee, total)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(code, b.customer_name.trim(), email, b.phone || '', b.delivery_method, b.address || '', b.city || '', b.notes || '', b.payment_method, subtotal, shipping, round2(subtotal + shipping));
+      const r = db.prepare(`INSERT INTO orders (code, customer_name, email, phone, delivery_method, address, city, shipping_zone, notes, payment_method, subtotal, shipping_fee, total)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(code, b.customer_name.trim(), email, b.phone || '', b.delivery_method, b.address || '', quote ? b.city : '', quote ? quote.zone : '', b.notes || '', b.payment_method, subtotal, shipping, round2(subtotal + shipping));
       const orderId = r.lastInsertRowid;
       for (const { p, qty, price } of lines) {
         const imgs = JSON.parse(p.images || '[]');
@@ -199,6 +202,9 @@ app.get('/api/orders/:code', (req, res) => {
     subtotal: o.subtotal, shipping_fee: o.shipping_fee, total: o.total, created_at: o.created_at, has_receipt: !!o.receipt, subscribed: promotions.isSubscribed(o.email),
     items: o.items.map(({ name, image, unit_price, qty }) => ({ name, image, unit_price, qty })),
     history: o.history,
+    arrival_code: o.status === 'entregado' ? o.arrival_code : null, delivered_at: o.delivered_at, shipping_zone: o.shipping_zone,
+    claim_until: claims.claimDeadline(o, s), claims: claims.forOrder(o.id),
+    owner_phone: s.owner_phone || s.whatsapp,
     payment: { bank_holder: s.bank_holder, bank_cuit: s.bank_cuit, bank_name: s.bank_name, bank_cbu: s.bank_cbu, bank_alias: s.bank_alias, qr_image: s.qr_image },
   });
 });
@@ -241,6 +247,7 @@ admin.get('/dashboard', (_req, res) => {
     month_orders: k.n, month_revenue: k.revenue,
     low_stock: db.prepare('SELECT COUNT(*) n FROM products WHERE active = 1 AND stock <= 3').get().n,
     unread_messages: db.prepare('SELECT COUNT(*) n FROM messages WHERE read = 0').get().n,
+    open_claims: db.prepare("SELECT COUNT(*) n FROM claims WHERE status IN ('abierto','en_revision')").get().n,
   });
 });
 
@@ -258,6 +265,10 @@ admin.get('/orders', (req, res) => {
 admin.get('/orders/:id', (req, res) => {
   const o = loadOrder('id', req.params.id);
   if (!o) return res.status(404).json({ error: 'No encontrado' });
+  // costo estimado de la página para este pedido (comisiones + parte del costo fijo)
+  const pc = rules.pageCost();
+  o.page_cost = round2(o.items.reduce((a, i) => a + rules.pageCostOfSale(i.unit_price, pc) * i.qty, 0));
+  o.claims = claims.forOrder(o.id);
   res.json(o);
 });
 
@@ -283,10 +294,14 @@ admin.patch('/orders/:id/status', (req, res) => {
         }
       }
       db.prepare("UPDATE orders SET status = ?, updated_at = datetime('now','localtime') WHERE id = ?").run(status, o.id);
+      // al entregarse se genera el código de llegada, que habilita el reclamo post-compra
+      if (status === 'entregado' && !o.arrival_code) {
+        db.prepare("UPDATE orders SET arrival_code = ?, delivered_at = datetime('now','localtime') WHERE id = ?").run(claims.newArrivalCode(), o.id);
+      }
       db.prepare('INSERT INTO order_status_history (order_id, status, note) VALUES (?, ?, ?)').run(o.id, status, note);
       return loadOrder('id', o.id);
     })();
-    if (notify) mailer.sendStatusChanged(order, note);
+    if (notify) mailer.sendStatusChanged(order, note, order.status === 'entregado' && order.arrival_code ? claims.deliveredBlock(order) : '');
     res.json(order);
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -303,7 +318,11 @@ admin.get('/receipts/:file', (req, res) => {
 // ----- productos -----
 const withCosts = (p) => {
   const x = parseProduct(p);
+  const pc = rules.pageCost();
   x.unit_total_cost = unitTotalCost(p);
+  x.min_price = rules.minPrice(x.unit_total_cost, pc);
+  x.page_cost = rules.pageCostOfSale(p.price, pc);
+  x.net_margin = round2(p.price - x.unit_total_cost - x.page_cost);
   x.iva_amount = round2((p.cost + p.shipping_cost) * p.iva_rate / 100);
   x.margin = round2(p.price - x.unit_total_cost);
   x.margin_pct = p.price > 0 ? round2((x.margin / p.price) * 100) : 0;
@@ -534,7 +553,20 @@ admin.delete('/messages/:id', (req, res) => {
 
 // ----- configuración -----
 admin.get('/settings', (_req, res) => res.json(getSettings()));
-admin.put('/settings', (req, res) => { setSettings(req.body || {}); res.json(getSettings()); });
+admin.put('/settings', (req, res) => {
+  const b = { ...(req.body || {}) };
+  try {
+    if (b.shipping_zones !== undefined) b.shipping_zones = JSON.stringify(rules.cleanZones(typeof b.shipping_zones === 'string' ? JSON.parse(b.shipping_zones) : b.shipping_zones));
+  } catch (e) { return res.status(400).json({ error: 'Zonas de envío: ' + e.message }); }
+  setSettings(b);
+  rules.clearPageCostCache();
+  res.json(getSettings());
+});
+
+admin.get('/page-cost', (_req, res) => res.json(rules.pageCost()));
+
+// ----- reclamos post-compra (incluye rutas públicas) -----
+claims.register(app, admin);
 
 // ----- promociones y suscriptores (incluye rutas públicas) -----
 promotions.register(app, admin);

@@ -41,10 +41,16 @@ async function init() {
   if (m) openProduct(Number(m[1]));
 }
 
+// zonas de envío habilitadas (CABA, GBA, etc.)
+const ZONES = () => { try { return JSON.parse(S.shipping_zones || '[]'); } catch { return []; } };
+const zoneOf = (place) => ZONES().find((z) => z.places.includes(place));
+const minFree = () => Math.min(...ZONES().map((z) => Number(z.free_from) || Infinity));
+
 function renderInfo() {
-  const free = Number(S.free_shipping_from || 0);
+  const free = Number.isFinite(minFree()) ? minFree() : 0;
+  const zoneNames = ZONES().map((z) => z.name).join(', ');
   $('#brand').innerHTML = `${logoHTML(S)}<span>${esc(S.name)}</span>`;
-  $('#tb-ship').textContent = free > 0 ? `🚚 Envío gratis en compras desde ${money(free)}` : '🚚 Envíos a domicilio';
+  $('#tb-ship').textContent = ZONES().length ? `🚚 Envíos a ${zoneNames}${free ? ` · gratis desde ${money(free)}` : ''}` : '🏪 Retiro en la farmacia';
   $('#tb-phone').textContent = S.phone; $('#tb-phone').href = `tel:${S.phone}`;
   $('#tb-hours').textContent = (S.hours || '').split('\n')[0];
 
@@ -61,7 +67,7 @@ function renderInfo() {
     <div class="chip b">${icon('truck')} Envío en el día</div>`;
 
   const perks = [
-    ['truck', 'Envíos a domicilio', free > 0 ? `Gratis desde ${money(free)}` : 'Rápidos y seguros'],
+    ['truck', 'Envíos a domicilio', ZONES().length ? `${ZONES().some((z) => /gba|cord/i.test(z.name)) ? 'CABA y GBA' : zoneNames}${free ? ` · gratis desde ${money(free)}` : ''}` : 'Consultá por tu zona'],
     ['bank', 'Transferencia', 'Sin recargo'],
     ['qr', 'Pagá con QR', 'Desde tu billetera virtual'],
     ['heart', 'Atención personalizada', 'Te asesoramos'],
@@ -216,11 +222,12 @@ function openProduct(id) {
   }
 }
 
-function totals(delivery = 'envio') {
+function totals(delivery = 'envio', place = '') {
   const subtotal = cart.reduce((a, i) => a + productById(i.id).price * i.qty, 0);
-  const free = Number(S.free_shipping_from || 0);
-  const shipping = delivery === 'envio' && !(free > 0 && subtotal >= free) ? Number(S.shipping_fee || 0) : 0;
-  return { subtotal, shipping, total: subtotal + shipping, free };
+  const z = delivery === 'envio' ? zoneOf(place) : null;
+  const free = z ? Number(z.free_from || 0) : (Number.isFinite(minFree()) ? minFree() : 0);
+  const shipping = z && !(free > 0 && subtotal >= free) ? Number(z.fee || 0) : 0;
+  return { subtotal, shipping, total: subtotal + shipping, free, zone: z };
 }
 
 function openCart() {
@@ -241,7 +248,7 @@ function renderCart() {
         <div style="text-align:right"><b>${money(p.price * i.qty)}</b><br><button class="icon-btn" data-rm="${p.id}" aria-label="Quitar">${icon('x')}</button></div></div>`;
     }).join('') : `<div class="empty">${icon('cart')}<p>Tu carrito está vacío</p><button class="btn btn-ghost btn-sm" data-close>Ver productos</button></div>`}</div>
     ${cart.length ? `<footer>
-      ${t.free > 0 && t.subtotal < t.free ? `<div class="ship-hint">🚚 Te faltan ${money(t.free - t.subtotal)} para el envío gratis</div>` : t.free > 0 ? '<div class="ship-hint">🎉 ¡Tenés envío gratis!</div>' : ''}
+      ${t.free > 0 && t.subtotal < t.free ? `<div class="ship-hint">🚚 Envío gratis desde ${money(t.free)} (según tu zona)</div>` : t.free > 0 ? `<div class="ship-hint">🎉 ¡Ya tenés envío gratis en ${esc((ZONES().find((z) => Number(z.free_from) === t.free) || {}).name || 'tu zona')}!</div>` : ''}
       <div class="sum-row"><span>Subtotal</span><b>${money(t.subtotal)}</b></div>
       <button class="btn btn-primary btn-block" id="go-checkout">Finalizar compra</button></footer>` : ''}`;
   const change = (id, delta) => {
@@ -269,12 +276,16 @@ function openCheckout() {
       </div>
       <div class="field"><label>Entrega</label>
         <div class="options">
-          <label class="option"><input type="radio" name="delivery_method" value="envio" checked> <span>${icon('truck')}</span><span>Envío a domicilio<small id="ship-lbl"></small></span></label>
-          <label class="option"><input type="radio" name="delivery_method" value="retiro"> <span>${icon('store')}</span><span>Retiro en farmacia<small>Sin costo</small></span></label>
+          <label class="option ${ZONES().length ? '' : 'hidden'}"><input type="radio" name="delivery_method" value="envio" ${ZONES().length ? 'checked' : ''}> <span>${icon('truck')}</span><span>Envío a domicilio<small id="ship-lbl"></small></span></label>
+          <label class="option"><input type="radio" name="delivery_method" value="retiro" ${ZONES().length ? '' : 'checked'}> <span>${icon('store')}</span><span>Retiro en farmacia<small>Sin costo</small></span></label>
         </div></div>
-      <div id="addr" class="two">
-        <div class="field"><label>Dirección</label><input type="text" name="address" autocomplete="street-address"></div>
-        <div class="field"><label>Localidad</label><input type="text" name="city" autocomplete="address-level2"></div>
+      <div id="addr">
+        <div class="two">
+          <div class="field"><label>Localidad / partido</label><select name="city"><option value="">Elegí tu localidad…</option>
+            ${ZONES().map((z) => `<optgroup label="${esc(z.name)} · envío ${money(z.fee)}">${z.places.map((p) => `<option>${esc(p)}</option>`).join('')}</optgroup>`).join('')}</select></div>
+          <div class="field"><label>Dirección</label><input type="text" name="address" autocomplete="street-address" placeholder="Calle, número, piso/depto"></div>
+        </div>
+        <p class="muted" style="font-size:.85rem;margin:-6px 0 12px">Enviamos solo a ${esc(ZONES().map((z) => z.name).join(', '))}. ¿Tu localidad no está? Elegí retiro en la farmacia o <a href="${waLink('Hola! Quería consultar si hacen envíos a mi zona.')}" target="_blank" rel="noopener">consultanos por WhatsApp</a>.</p>
       </div>
       <div class="field"><label>Medio de pago</label>
         <div class="options">
@@ -290,15 +301,18 @@ function openCheckout() {
   const f = $('#checkout');
   const upd = () => {
     const dm = f.delivery_method.value;
-    const t = totals(dm);
+    const t = totals(dm, f.city.value);
     $('#addr').classList.toggle('hidden', dm !== 'envio');
-    f.address.required = dm === 'envio';
-    $('#ship-lbl').textContent = t.free > 0 && t.subtotal >= t.free ? '¡Gratis!' : money(S.shipping_fee);
+    f.address.required = f.city.required = dm === 'envio';
+    $('#ship-lbl').textContent = t.zone ? `${t.zone.name}: ${t.shipping ? money(t.shipping) : '¡gratis!'}` : 'CABA y GBA';
+    const shipTxt = dm !== 'envio' ? 'Sin costo' : !t.zone ? 'Elegí tu localidad' : t.shipping ? money(t.shipping) : 'Gratis';
     $('#co-sum').innerHTML = `<div class="sum-row"><span>Subtotal</span><span>${money(t.subtotal)}</span></div>
-      <div class="sum-row"><span>Envío</span><span>${t.shipping ? money(t.shipping) : 'Gratis'}</span></div>
+      <div class="sum-row"><span>Envío${t.zone ? ` (${esc(t.zone.name)})` : ''}</span><span>${shipTxt}</span></div>
+      ${t.zone && t.free > 0 && t.subtotal < t.free ? `<div class="ship-hint">🚚 Te faltan ${money(t.free - t.subtotal)} para el envío gratis en ${esc(t.zone.name)}</div>` : ''}
       <div class="sum-row total"><span>Total</span><span>${money(t.total)}</span></div>`;
   };
   $$('input[name=delivery_method]', f).forEach((r) => (r.onchange = upd));
+  f.city.onchange = upd;
   upd();
   f.onsubmit = async (e) => {
     e.preventDefault();

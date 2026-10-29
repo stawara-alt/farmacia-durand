@@ -7,7 +7,7 @@ const STATUS = {
   en_preparacion: { label: 'En preparación', emoji: '📦', text: 'Estamos preparando tu pedido.' },
   en_envio: { label: 'En camino', emoji: '🚚', text: 'Tu pedido salió y está en camino.' },
   listo_retiro: { label: 'Listo para retirar', emoji: '🏪', text: 'Tu pedido está listo para retirar en la farmacia.' },
-  entregado: { label: 'Entregado', emoji: '🎉', text: '¡Tu pedido fue entregado! Gracias por elegirnos.' },
+  entregado: { label: 'Entregado', emoji: '🎉', text: '¡Tu pedido llegó! Gracias por elegirnos.' },
   rechazado: { label: 'Rechazado', emoji: '⚠️', text: 'No pudimos aceptar tu pedido. Comunicate con nosotros para más información.' },
   cancelado: { label: 'Cancelado', emoji: '❌', text: 'Tu pedido fue cancelado.' },
 };
@@ -105,7 +105,7 @@ function sendOrderCreated(order) {
   }
 }
 
-function sendStatusChanged(order, note) {
+function sendStatusChanged(order, note, extraHtml = '') {
   const s = getSettings();
   const st = STATUS[order.status] || { label: order.status, emoji: '', text: '' };
   const link = `${baseUrl()}/pedido/${order.code}`;
@@ -114,9 +114,12 @@ function sendStatusChanged(order, note) {
     <p>Hola ${esc(order.customer_name.split(' ')[0])}, tu pedido <b>#${order.id}</b> cambió de estado.</p>
     <p>${st.text}</p>
     ${note ? `<div style="background:#fff7e6;border-radius:10px;padding:14px;font-size:14px"><b>Mensaje de la farmacia:</b><br>${esc(note)}</div>` : ''}
-    ${button(s, link, 'Seguir mi pedido')}
+    ${extraHtml || button(s, link, 'Seguir mi pedido')}
     ${itemsTable(order)}`);
-  send(order.email, `${st.emoji} Pedido #${order.id}: ${st.label} - ${s.name}`, html);
+  const subject = order.status === 'entregado' && order.arrival_code
+    ? `📬 ¡Tu pedido #${order.id} llegó! Guardá tu código de llegada - ${s.name}`
+    : `${st.emoji} Pedido #${order.id}: ${st.label} - ${s.name}`;
+  send(order.email, subject, html);
 }
 
 function sendContactNotice(msg) {

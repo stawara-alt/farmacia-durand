@@ -261,3 +261,5 @@ footer.site .copy { border-top: 1px solid rgba(255,255,255,.12); margin-top: 28p
 .news-form input { flex: 1 1 160px; border-radius: 999px !important; }
 footer.site .cols { grid-template-columns: 1.2fr 1fr 1fr 1.2fr; }
 @media (max-width: 900px) { footer.site .cols { grid-template-columns: 1fr; } }
+.legal-links { display: flex; gap: 16px; flex-wrap: wrap; }
+footer.site a.regret { color: #fff; font-weight: 800; text-decoration: underline; }

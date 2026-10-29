@@ -172,6 +172,28 @@ CREATE TABLE IF NOT EXISTS promotions (
   created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
+CREATE TABLE IF NOT EXISTS claims (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,                      -- roto | equivocado | faltante | vencido | arrepentimiento | otro
+  description TEXT NOT NULL DEFAULT '',
+  resolution TEXT DEFAULT '',              -- lo que pide el cliente: cambio | devolucion | otro
+  photos TEXT NOT NULL DEFAULT '[]',
+  contact_phone TEXT DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'abierto',  -- abierto | en_revision | resuelto | rechazado
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS claim_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  claim_id INTEGER NOT NULL REFERENCES claims(id) ON DELETE CASCADE,
+  author TEXT NOT NULL,                    -- cliente | farmacia
+  status TEXT,
+  message TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT
@@ -180,6 +202,10 @@ CREATE TABLE IF NOT EXISTS settings (
 
 // migraciones de columnas agregadas después
 const productCols = db.prepare('PRAGMA table_info(products)').all().map((c) => c.name);
+const orderCols = db.prepare('PRAGMA table_info(orders)').all().map((c) => c.name);
+if (!orderCols.includes('shipping_zone')) db.exec("ALTER TABLE orders ADD COLUMN shipping_zone TEXT DEFAULT ''");
+if (!orderCols.includes('arrival_code')) db.exec('ALTER TABLE orders ADD COLUMN arrival_code TEXT');
+if (!orderCols.includes('delivered_at')) db.exec('ALTER TABLE orders ADD COLUMN delivered_at TEXT');
 if (!productCols.includes('barcode')) db.exec("ALTER TABLE products ADD COLUMN barcode TEXT DEFAULT ''");
 
 const DEFAULT_SETTINGS = {
@@ -200,8 +226,6 @@ const DEFAULT_SETTINGS = {
   color_accent: '#ff6f61',
   logo: '',
   hero_image: '',
-  shipping_fee: '2500',
-  free_shipping_from: '40000',
   bank_holder: 'Farmacia Durand',
   bank_cuit: '30-12345678-9',
   bank_name: 'Banco Nación',
@@ -210,6 +234,19 @@ const DEFAULT_SETTINGS = {
   qr_image: '',                // imagen de QR subida (ej. QR de Mercado Pago)
   qr_text: '',                 // si no hay imagen, se genera un QR con este texto/link
   maps_url: 'https://www.google.com/maps/place/farmacia+durand/data=!4m2!3m1!1s0x95bcca6ca194d707:0x1beb13e24f87d47d',
+  owner_phone: '',              // celular de la dueña para reclamos (si está vacío se usa el WhatsApp)
+  claim_days: '10',             // días desde la entrega para iniciar un reclamo
+  // costos de vender online, para calcular el precio mínimo
+  page_fixed_monthly: '30000',  // hosting, dominio, emails, lectura de facturas, etc. ($ por mes)
+  page_fee_pct: '3.5',          // comisiones de cobro + impuestos sobre la venta (IIBB, etc.) en % del precio
+  page_units_month: '0',        // unidades vendidas por mes para repartir el costo fijo (0 = promedio real de los últimos 3 meses)
+  shipping_zones: JSON.stringify([
+    { name: 'CABA', fee: 2500, free_from: 40000, enabled: true, places: ['CABA'] },
+    { name: 'GBA 1er cordón', fee: 3500, free_from: 50000, enabled: true,
+      places: ['Avellaneda', 'General San Martín', 'Hurlingham', 'Ituzaingó', 'La Matanza', 'Lanús', 'Lomas de Zamora', 'Morón', 'Quilmes', 'San Isidro', 'Tres de Febrero', 'Vicente López'] },
+    { name: 'GBA 2do cordón', fee: 4500, free_from: 60000, enabled: true,
+      places: ['Almirante Brown', 'Berazategui', 'Esteban Echeverría', 'Ezeiza', 'Florencio Varela', 'José C. Paz', 'Malvinas Argentinas', 'Merlo', 'Moreno', 'San Fernando', 'San Miguel', 'Tigre'] },
+  ]),
   default_markup: '40',        // % de ganancia sobre costo para productos nuevos de facturas
   price_rounding: '10',        // redondeo hacia arriba de precios calculados ($)
   ml_seller_id: '',
