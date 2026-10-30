@@ -108,7 +108,7 @@
             <div class="stop-top"><span class="n">${i + 1}</span><div style="flex:1">
               <div class="who">${esc(o.customer_name)} <span class="muted" style="font-weight:600">#${o.id}</span></div>
               <div class="addr">${esc(o.address)}</div>
-              <div class="muted">${esc(o.city)}${o.zone ? ' · ' + esc(o.zone) : ''}${o.km_from_prev != null ? ` · ${o.km_from_prev} km` : ''}</div>
+              <div class="muted">${esc(o.city)}${o.zone && o.zone !== o.city ? ' · ' + esc(o.zone) : ''}${o.km_from_prev != null ? ` · ${o.km_from_prev} km` : ''}</div>
               <span class="pref">${esc(DELIVERY_PREFS[o.delivery_pref] || o.pref_label)}</span>
               ${o.notes ? `<div class="meta">📝 ${esc(o.notes)}</div>` : ''}
               <div class="meta">📦 ${o.units} unidad(es): ${o.items.map((it) => `${esc(it.name)} ×${it.qty}`).join(', ')}</div>

@@ -214,7 +214,7 @@ async function openOrder(id) {
 VIEWS.reparto = async () => {
   const R = await api('/api/admin/reparto');
   const row = (o, extra = '') => `<tr class="click" data-order="${o.id}"><td><b>${o.id}</b></td><td>${esc(o.customer_name)}</td>
-    <td>${esc(o.address)}<br><small class="muted">${esc(o.city)}${o.shipping_zone ? ` · ${esc(o.shipping_zone)}` : ''}</small></td>
+    <td>${esc(o.address)}<br><small class="muted">${esc(o.city)}${o.shipping_zone && o.shipping_zone !== o.city ? ` · ${esc(o.shipping_zone)}` : ''}</small></td>
     <td><small>${esc(DELIVERY_PREFS[o.delivery_pref] || DELIVERY_PREFS.mano)}</small></td><td>${extra}</td></tr>`;
   const table = (list, extra, empty) => list.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>#</th><th>Cliente</th><th>Dirección</th><th>Entrega</th><th></th></tr></thead>
     <tbody>${list.map((o) => row(o, extra(o))).join('')}</tbody></table></div>` : `<p class="muted">${empty}</p>`;
