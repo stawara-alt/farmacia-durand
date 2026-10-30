@@ -3,7 +3,10 @@ const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const PLACEHOLDER = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#eef3f1"/><path d="M85 60h30v25h25v30h-25v25H85v-25H60V85h25z" fill="#c9d6d1"/></svg>');
+// imagen para productos sin foto: emblema (cruz + D) suave y "Foto próximamente"
+const PLACEHOLDER = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#eef5f0"/>'
+  + '<g transform="translate(62 46) scale(.76)" opacity=".28"><circle cx="50" cy="50" r="40" fill="#038b37"/><path d="M27 31h12v13h13v12H39v13H27V56H14V44h13z" fill="#038b37" stroke="#fff" stroke-width="3.5"/><path d="M55 26h6a24 24 0 0 1 0 48h-6z" fill="#038b37" stroke="#fff" stroke-width="3.5"/></g>'
+  + '<text x="100" y="150" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#7fa48d">Foto próximamente</text></svg>');
 
 const ICONS = {
   cart: '<path d="M3 3h2l2.4 12.2a2 2 0 0 0 2 1.6h8.8a2 2 0 0 0 2-1.6L21 7H6"/><circle cx="10" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/>',

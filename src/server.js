@@ -11,6 +11,7 @@ const { db, getSettings, setSettings, unitTotalCost, round2, parseProduct, recor
 const mailer = require('./mailer');
 const { fetchSellerProducts } = require('./mercadolibre');
 const { parseCSV, num } = require('./csv');
+const sheets = require('./sheets');
 const promotions = require('./promotions');
 const rules = require('./rules');
 const claims = require('./claims');
@@ -431,9 +432,8 @@ admin.post('/import/mercadolibre', async (req, res) => {
   }
 });
 
-admin.post('/import/csv', memUpload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'Subí un archivo CSV' });
-  const rows = parseCSV(req.file.buffer.toString('utf8'));
+// planilla común (CSV o Excel con encabezados: nombre, precio, stock, costo...)
+function importRows(rows) {
   let created = 0, updated = 0, skipped = 0;
   const pick = (r, ...keys) => { for (const k of keys) if (r[k] !== undefined && r[k] !== '') return r[k]; return undefined; };
   db.transaction(() => {
@@ -454,7 +454,64 @@ admin.post('/import/csv', memUpload.single('file'), (req, res) => {
       if (ex) { updateProduct(ex.id, d, 'carga'); updated++; } else { createProduct(d); created++; }
     }
   })();
-  res.json({ ok: true, created, updated, skipped });
+  return { ok: true, format: 'planilla', created, updated, skipped };
+}
+
+// Excel "Modificar en Excel" de Mercado Libre. La primera vez crea los productos (con marca y categoría
+// deducidas del título); las siguientes solo actualizan precio, stock e IVA, así no pisa lo que editó la dueña.
+function importMercadoLibre(rows) {
+  const { nameScore } = require('./purchases');
+  const report = { ok: true, format: 'mercadolibre', total: rows.length, created: 0, updated: 0, no_price: [], duplicates: [], promos: [], odd_stock: [] };
+  const createdIds = [];
+  db.transaction(() => {
+    for (const r of rows) {
+      if (!r.title) continue;
+      if (!r.price) report.no_price.push(r.title);
+      if (r.sale_price && r.price && r.sale_price < r.price) report.promos.push({ name: r.title, price: r.price, sale_price: r.sale_price });
+      if (r.stock >= 1000) report.odd_stock.push({ name: r.title, stock: r.stock });
+      const ex = db.prepare('SELECT id FROM products WHERE ml_id = ?').get(r.ml_id);
+      if (ex) {
+        updateProduct(ex.id, cleanProduct({ price: r.price, stock: r.stock, iva_rate: r.iva }), 'mercadolibre');
+        report.updated++;
+      } else {
+        const p = createProduct({ ...cleanProduct({ name: r.title, description: r.description, price: r.price, stock: r.stock, iva_rate: r.iva,
+          brand: sheets.guessBrand(r.title), category: sheets.guessCategory(r.title), active: r.price > 0 }), ml_id: r.ml_id, ml_permalink: sheets.mlPermalink(r.ml_id) }, 'mercadolibre');
+        createdIds.push(p.id);
+        report.created++;
+      }
+    }
+    // la misma cosa publicada dos veces en Mercado Libre: queda visible la de mejor descripción, las otras ocultas
+    const fresh = createdIds.map((id) => db.prepare('SELECT * FROM products WHERE id = ?').get(id)).filter((p) => p.active);
+    const hidden = new Set();
+    for (let i = 0; i < fresh.length; i++) {
+      if (hidden.has(fresh[i].id)) continue;
+      const group = [fresh[i]];
+      for (let j = i + 1; j < fresh.length; j++) {
+        const a = fresh[i], b = fresh[j];
+        if (!hidden.has(b.id) && a.price === b.price && nameScore(a.name, b.name) >= 0.75) group.push(b);
+      }
+      if (group.length < 2) continue;
+      group.sort((a, b) => (b.description || '').length - (a.description || '').length);
+      for (const p of group.slice(1)) { hidden.add(p.id); db.prepare('UPDATE products SET active = 0 WHERE id = ?').run(p.id); }
+      report.duplicates.push({ kept: group[0].name, hidden: group.slice(1).map((p) => p.name) });
+    }
+  })();
+  return report;
+}
+
+admin.post('/import/csv', memUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Subí un archivo CSV o Excel' });
+  try {
+    if (/\.xlsx$/i.test(req.file.originalname || '')) {
+      const wb = await sheets.readWorkbook(req.file.buffer);
+      const ml = sheets.mlSheet(wb);
+      return res.json(ml ? importMercadoLibre(ml) : importRows(sheets.genericRows(wb)));
+    }
+    if (/\.xls$/i.test(req.file.originalname || '')) return res.status(400).json({ error: 'El formato .xls viejo no se puede leer: abrilo en Excel y guardalo como .xlsx' });
+    res.json(importRows(parseCSV(req.file.buffer.toString('utf8'))));
+  } catch (e) {
+    res.status(400).json({ error: 'No se pudo leer el archivo: ' + e.message });
+  }
 });
 
 admin.get('/export/csv', (_req, res) => {

@@ -245,7 +245,7 @@ function openProduct(id) {
         ${imgs.length > 1 ? `<div class="thumbs">${imgs.map((u, i) => `<button class="${i ? '' : 'active'}" data-img="${esc(u)}"><img src="${esc(u)}" alt=""></button>`).join('')}</div>` : ''}
       </div>
       <div class="info">
-        <span class="brand-name muted"><b>${esc(p.brand)}</b> · ${esc(p.category)}</span>
+        <span class="brand-name muted">${p.brand ? `<b>${esc(p.brand)}</b> · ` : ''}${esc(p.category)}</span>
         <h2>${esc(p.name)}</h2>
         <div>${p.list_price > p.price ? `<s class="list-price">${money(p.list_price)}</s> <span class="badge" style="position:static">${esc(p.promo_label)}</span>` : ''}<div class="price">${money(p.price)}</div></div>
         ${p.requires_prescription ? `<div class="rx-note">💊 Este medicamento es de <b>venta bajo receta</b>. Consultanos por WhatsApp para coordinar la compra.</div>`

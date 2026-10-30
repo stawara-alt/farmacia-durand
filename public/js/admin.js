@@ -223,7 +223,7 @@ VIEWS.productos = async () => {
     $('#p-count').textContent = `${list.length} productos`;
     $('#p-body').innerHTML = list.map((p) => `<tr>
       <td><img class="mini" src="${esc(p.images[0] || PLACEHOLDER)}" alt="" onerror="this.src=PLACEHOLDER"></td>
-      <td><b>${esc(p.name)}</b><br><small class="muted">${esc(p.brand)} ${p.sku ? '· ' + esc(p.sku) : ''} ${p.ml_id ? '· ML ' + esc(p.ml_id) : ''}</small></td>
+      <td><b>${esc(p.name)}</b><br><small class="muted">${[p.brand && esc(p.brand), p.sku && esc(p.sku), p.ml_id && 'ML ' + esc(p.ml_id)].filter(Boolean).join(' · ')}</small></td>
       <td>${esc(p.category)}</td><td class="num">${money(p.price)}</td>
       <td class="num"><div class="qty"><button data-sd="${p.id}" aria-label="Restar">−</button><span class="${p.stock <= 3 ? 'low' : ''}">${p.stock}</span><button data-si="${p.id}" aria-label="Sumar">+</button></div></td>
       <td>${p.active ? '<span class="st st-entregado">Publicado</span>' : '<span class="st st-cancelado">Oculto</span>'}${p.requires_prescription ? ' <span class="st st-en_preparacion">Receta</span>' : ''}</td>
@@ -899,10 +899,11 @@ VIEWS.importar = async () => {
         <li>Tu <b>seller_id</b> es el número de usuario de la cuenta (si dejás el campo vacío y ponés el token, se detecta solo).</li>
         <li>Alternativa sin token: en Mercado Libre andá a <i>Publicaciones → Modificar en Excel</i>, descargá el archivo, guardalo como CSV e importalo abajo.</li></ol></div>
     </div>
-    <div class="panel"><h3>📄 Desde planilla (CSV / Excel)</h3>
-      <p class="muted">Columnas reconocidas: <code>nombre, descripcion, categoria, marca, sku, precio, costo, costo_envio, iva, stock, receta, imagenes</code> (varias imágenes separadas por <code>|</code>). Si el SKU (o el nombre) ya existe, se actualiza.</p>
+    <div class="panel"><h3>📄 Desde el Excel de Mercado Libre o una planilla (CSV / Excel)</h3>
+      <p class="muted"><b>Excel de Mercado Libre:</b> en Mercado Libre andá a <i>Publicaciones → Modificar en Excel → Descargar</i> y subí ese archivo tal cual. La primera vez crea los productos (con marca y categoría deducidas del título); las siguientes solo actualizan <b>precio, stock e IVA</b>, sin pisar lo que editaste. Las fotos no vienen en ese Excel: se traen con la importación por access token de arriba.</p>
+      <p class="muted"><b>Planilla propia:</b> columnas reconocidas: <code>nombre, descripcion, categoria, marca, sku, precio, costo, costo_envio, iva, stock, receta, imagenes</code> (varias imágenes separadas por <code>|</code>). Si el SKU (o el nombre) ya existe, se actualiza.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <label class="btn btn-primary">⬆️ Subir CSV<input type="file" id="csv-in" accept=".csv,text/csv" hidden></label>
+        <label class="btn btn-primary">⬆️ Subir Excel o CSV<input type="file" id="csv-in" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label>
         <a class="btn btn-ghost" href="/api/admin/export/csv">⬇️ Exportar productos actuales</a>
         <button class="btn btn-light" id="csv-tpl">Descargar plantilla</button>
       </div><div id="csv-res" style="margin-top:12px"></div></div>`;
@@ -919,7 +920,11 @@ VIEWS.importar = async () => {
   };
   $('#csv-in').onchange = async (e) => {
     const fd = new FormData(); fd.append('file', e.target.files[0]);
-    try { const r = await api('/api/admin/import/csv', { method: 'POST', body: fd }); $('#csv-res').innerHTML = `<div class="help"><b>✓ Importado:</b> ${r.created} nuevos · ${r.updated} actualizados · ${r.skipped} filas omitidas.</div>`; }
+    $('#csv-res').innerHTML = '<p class="muted">Leyendo el archivo…</p>';
+    try {
+      const r = await api('/api/admin/import/csv', { method: 'POST', body: fd });
+      $('#csv-res').innerHTML = r.format === 'mercadolibre' ? importReportML(r) : `<div class="help"><b>✓ Importado:</b> ${r.created} nuevos · ${r.updated} actualizados · ${r.skipped} filas omitidas.</div>`;
+    }
     catch (err) { $('#csv-res').innerHTML = `<div class="error-box">${esc(err.message)}</div>`; }
     e.target.value = '';
   };
@@ -929,6 +934,20 @@ VIEWS.importar = async () => {
     a.click();
   };
 };
+
+// resumen de la importación del Excel de Mercado Libre, con lo que conviene revisar
+function importReportML(r) {
+  const list = (items) => `<ul style="margin:6px 0 0;padding-left:20px">${items.join('')}</ul>`;
+  return `<div class="help" style="border-color:#17794a"><b>✓ Excel de Mercado Libre:</b> ${r.total} publicaciones · ${r.created} productos nuevos · ${r.updated} actualizados (precio, stock e IVA).
+      <a href="#productos">Ver productos →</a></div>
+    ${r.duplicates.length ? `<div class="help" style="margin-top:10px"><b>🔁 Publicados dos veces en Mercado Libre:</b> dejé visible uno de cada par y oculté el otro (se puede cambiar en Productos).
+      ${list(r.duplicates.map((d) => `<li>Visible: <b>${esc(d.kept)}</b><br><small class="muted">Oculto: ${d.hidden.map(esc).join(' · ')}</small></li>`))}</div>` : ''}
+    ${r.no_price.length ? `<div class="help" style="margin-top:10px;border-color:#e0a800"><b>⚠️ Sin precio en el Excel</b> (quedaron ocultos hasta que les cargues precio):${list(r.no_price.map((n) => `<li>${esc(n)}</li>`))}</div>` : ''}
+    ${r.odd_stock.length ? `<div class="help" style="margin-top:10px;border-color:#e0a800"><b>⚠️ Stock que parece un error:</b>${list(r.odd_stock.map((o) => `<li>${esc(o.name)}: <b>${o.stock}</b> unidades</li>`))}</div>` : ''}
+    ${r.promos.length ? `<div class="help" style="margin-top:10px"><b>🏷️ Tienen precio de promoción en Mercado Libre</b> (en la web quedó el precio normal; si querés el mismo descuento, creá una promoción):
+      ${list(r.promos.map((p) => `<li>${esc(p.name)}: ${money(p.price)} → <b>${money(p.sale_price)}</b> en ML</li>`))}</div>` : ''}
+    <div class="help" style="margin-top:10px">📷 Este Excel no trae fotos ni costos: cargá las fotos (o importalas con el access token) y los costos desde <a href="#productos">Productos</a>.</div>`;
+}
 
 // ---------- mensajes ----------
 VIEWS.mensajes = async () => {

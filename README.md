@@ -59,7 +59,7 @@ Opcional: `npm run seed` carga 17 productos y un año de ventas de ejemplo para 
 2. Generá un *access token* (dura 6 horas; se genera uno nuevo cada vez que quieras sincronizar).
 3. En **Panel → Importar** pegá el token (y opcionalmente el seller_id) y tocá *Importar*. Se traen nombre, precio, stock, fotos, categoría, marca y descripción. Si volvés a importar, se actualizan precio, stock y fotos, pero **los costos que cargaste no se tocan**.
 
-Sin token: en Mercado Libre, *Publicaciones → Modificar en Excel*, guardá el archivo como CSV e importalo desde la misma pantalla.
+Sin token: en Mercado Libre, *Publicaciones → Modificar en Excel → Descargar*, y subí ese **Excel (.xlsx) tal cual** en la misma pantalla. La primera vez crea los productos (marca y categoría deducidas del título; si algo está publicado dos veces en Mercado Libre deja uno visible y oculta el resto; los que no tienen precio quedan ocultos). Las siguientes veces solo actualiza **precio, stock e IVA**, sin pisar lo que se editó. Ese Excel no trae fotos ni costos: las fotos se traen después con la importación por token (que reconoce los productos por su número de publicación) o se cargan a mano.
 
 ## Precio mínimo y costo de la página
 
