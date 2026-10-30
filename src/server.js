@@ -502,6 +502,20 @@ function importRows(rows) {
   return { ok: true, format: 'planilla', created, updated, skipped };
 }
 
+// Fotos incluidas en public/img/productos (fotos.json: número de publicación de Mercado Libre -> archivos).
+// Se ponen solo en los productos que todavía no tienen foto, así no pisan las que cargó la dueña.
+function applyBundledPhotos() {
+  let map = {};
+  try { map = JSON.parse(fs.readFileSync(path.join(PUBLIC, 'img/productos/fotos.json'), 'utf8')); } catch { return 0; }
+  let n = 0;
+  for (const p of db.prepare("SELECT id, ml_id FROM products WHERE ml_id IS NOT NULL AND (images IS NULL OR images = '[]')").all()) {
+    const files = (map[p.ml_id] || []).filter((f) => fs.existsSync(path.join(PUBLIC, 'img/productos', f)));
+    if (files.length) { db.prepare('UPDATE products SET images = ? WHERE id = ?').run(JSON.stringify(files.map((f) => '/img/productos/' + f)), p.id); n++; }
+  }
+  return n;
+}
+applyBundledPhotos();
+
 // Excel "Modificar en Excel" de Mercado Libre. La primera vez crea los productos (con marca y categoría
 // deducidas del título); las siguientes solo actualizan precio, stock e IVA, así no pisa lo que editó la dueña.
 function importMercadoLibre(rows) {
@@ -541,6 +555,7 @@ function importMercadoLibre(rows) {
       report.duplicates.push({ kept: group[0].name, hidden: group.slice(1).map((p) => p.name) });
     }
   })();
+  report.photos = applyBundledPhotos();
   return report;
 }
 
