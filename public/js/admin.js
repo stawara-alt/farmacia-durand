@@ -6,7 +6,7 @@ const minPriceFor = (total) => (total + PC.fixed_per_unit) / Math.max(0.05, 1 - 
 const pageCostFor = (price) => PC.fixed_per_unit + (price * PC.fee_pct) / 100;
 const charts = [];
 const SERIES = ['#2a78d6', '#eb6834', '#1baf7a']; // paleta categórica validada (orden fijo)
-const TABS = { resumen: 'Resumen', pedidos: 'Pedidos', productos: 'Productos y stock', compras: 'Facturas de compra', promos: 'Promociones', reclamos: 'Reclamos', costos: 'Costos y márgenes', estadisticas: 'Estadísticas', importar: 'Importar productos', mensajes: 'Mensajes', config: 'Configuración' };
+const TABS = { resumen: 'Resumen', lanzamiento: 'Puesta en marcha', pedidos: 'Pedidos', productos: 'Productos y stock', compras: 'Facturas de compra', promos: 'Promociones', reclamos: 'Reclamos', costos: 'Costos y márgenes', estadisticas: 'Estadísticas', importar: 'Importar productos', mensajes: 'Mensajes', config: 'Configuración' };
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const fmtMonth = (m) => { const [y, mo] = m.split('-'); return `${MONTHS[+mo - 1]} ${y.slice(2)}`; };
 const fmtDate = (d) => new Date(d.replace(' ', 'T')).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' });
@@ -45,6 +45,7 @@ async function refreshBadges() {
     $('#n-pend').textContent = d.pending || '';
     $('#n-msg').textContent = d.unread_messages || '';
     $('#n-claims').textContent = d.open_claims || '';
+    $('#n-launch').textContent = d.launch_pending || '';
     return d;
   } catch (e) { if (e.status === 401) location.reload(); }
 }
@@ -106,8 +107,10 @@ const VIEWS = {};
 VIEWS.resumen = async () => {
   const [d, orders, stats] = await Promise.all([refreshBadges(), api('/api/admin/orders'), api('/api/admin/stats?months=6')]);
   const pending = orders.filter((o) => ['pendiente', 'aceptado', 'en_preparacion', 'en_envio', 'listo_retiro'].includes(o.status)).slice(0, 10);
+  const L = await api('/api/admin/launch');
   $('#view').innerHTML = `
     <div class="page-head"><h1>¡Hola! 👋</h1><a class="btn btn-primary btn-sm" href="#pedidos">Ver todos los pedidos</a></div>
+    ${L.open ? '' : `<a class="launch-state" href="#lanzamiento" style="text-decoration:none;color:inherit"><div><b>🔒 La tienda todavía está cerrada al público</b><br><span>${L.pending ? `Faltan ${L.pending} cosas obligatorias para abrirla.` : 'Ya está todo listo: podés abrirla.'}</span></div><span class="btn btn-primary btn-sm">Ver Puesta en marcha</span></a>`}
     <div class="kpis">
       <div class="kpi"><div class="lbl">Pedidos por confirmar</div><div class="val">${d.pending}</div><div class="sub">esperando revisión</div></div>
       <div class="kpi"><div class="lbl">Pedidos en curso</div><div class="val">${d.active}</div><div class="sub">aceptados / preparación / envío</div></div>
@@ -445,6 +448,50 @@ function promoSend(p, subscribers) {
     catch (err) { toast(err.message); }
   };
 }
+
+// ---------- puesta en marcha ----------
+VIEWS.lanzamiento = async () => {
+  const L = await api('/api/admin/launch');
+  const groups = [...new Set(L.items.map((i) => i.group))];
+  const reqPending = L.items.filter((i) => i.required && !i.ok);
+  $('#view').innerHTML = `<div class="page-head"><h1>Puesta en marcha</h1>
+      <a class="btn btn-ghost btn-sm" href="/" target="_blank">Ver la tienda ↗</a></div>
+    <div class="launch-state ${L.open ? 'open' : ''}">
+      <div><b>${L.open ? '🟢 La tienda está ABIERTA al público' : '🔒 La tienda está CERRADA al público'}</b><br>
+        <span>${L.open ? 'Los clientes pueden comprar.' : 'Los visitantes ven una página de "Muy pronto" con tus datos de contacto. Vos, con la sesión iniciada, ves la tienda completa y podés hacer compras de prueba.'}</span></div>
+      <button class="btn ${L.open ? 'btn-light' : 'btn-primary'}" id="ln-toggle">${L.open ? 'Cerrar la tienda' : '🚀 Abrir la tienda al público'}</button>
+    </div>
+    <div class="panel"><div class="launch-progress"><div style="width:${Math.round((L.done / L.total) * 100)}%"></div></div>
+      <p class="muted" style="margin:8px 0 0">${L.done} de ${L.total} listos · ${reqPending.length ? `<b class="neg">${reqPending.length} obligatorios pendientes</b>` : '<b class="pos">todo lo obligatorio está listo ✓</b>'}</p></div>
+    ${groups.map((g) => `<div class="panel"><h3>${esc(g)}</h3><ul class="checklist">
+      ${L.items.filter((i) => i.group === g).map((i) => `<li class="${i.ok ? 'ok' : ''}">
+        ${i.manual ? `<input type="checkbox" data-chk="${i.key}" ${i.ok ? 'checked' : ''} aria-label="Confirmar">` : `<span class="mark">${i.ok ? '✓' : i.required ? '✗' : '•'}</span>`}
+        <div><b>${esc(i.label)}</b>${i.required ? '' : ' <span class="st st-aceptado">recomendado</span>'}${i.detail ? `<br><small class="muted">${esc(i.detail)}</small>` : ''}</div>
+        ${i.tab && !i.ok ? `<a class="btn btn-ghost btn-sm" href="#${i.tab}">Completar</a>` : ''}</li>`).join('')}</ul></div>`).join('')}
+    ${!L.open && (L.demo.products || L.demo.orders) ? `<div class="panel" style="border:2px solid #f3c7c3"><h3>Empezar de cero</h3>
+      <p class="muted">Hay ${L.demo.products} productos de ejemplo y ${L.demo.orders} pedidos de prueba. Antes de abrir, borralos para que las estadísticas arranquen limpias. Se borran también reclamos, facturas de compra, mensajes y suscriptores de prueba. Tus datos de Configuración y los productos que cargaste no se tocan.</p>
+      <button class="btn btn-light" id="ln-reset" style="color:#b3261e">Borrar datos de ejemplo</button></div>` : ''}
+    <div class="help">Lo del grupo <b>Servidor</b> lo configura quien publica la página (en el archivo .env del servidor). Lo demás lo completás vos desde el panel.</div>`;
+  $$('[data-chk]').forEach((c) => (c.onchange = async () => { await api('/api/admin/launch/check', { method: 'PUT', body: { key: c.dataset.chk, value: c.checked } }); route(); }));
+  $('#ln-toggle').onclick = async () => {
+    if (!L.open) {
+      const msg = reqPending.length
+        ? `Todavía faltan ${reqPending.length} cosas obligatorias:\n\n- ${reqPending.map((i) => i.label).join('\n- ')}\n\n¿Abrir la tienda igual?`
+        : '¿Abrir la tienda al público? Desde ahora los clientes pueden comprar.';
+      if (!confirm(msg)) return;
+    } else if (!confirm('¿Cerrar la tienda? Los visitantes verán la página de "Muy pronto" y no podrán comprar.')) return;
+    await api('/api/admin/launch/open', { method: 'PUT', body: { open: !L.open } });
+    toast(L.open ? 'Tienda cerrada al público' : '🚀 ¡La tienda está abierta!');
+    refreshBadges(); route();
+  };
+  const r = $('#ln-reset');
+  if (r) r.onclick = async () => {
+    const t = prompt('Esto borra los productos de ejemplo y todos los pedidos de prueba. No se puede deshacer.\n\nEscribí BORRAR para confirmar:');
+    if (t === null) return;
+    try { await api('/api/admin/launch/reset-demo', { method: 'POST', body: { confirm: t } }); toast('Datos de ejemplo borrados ✓'); refreshBadges(); route(); }
+    catch (e) { toast(e.message); }
+  };
+};
 
 // ---------- reclamos post-compra ----------
 const CLAIM_ST = { abierto: ['Nuevo', 'st-pendiente'], en_revision: ['En revisión', 'st-aceptado'], resuelto: ['Resuelto', 'st-entregado'], rechazado: ['Rechazado', 'st-cancelado'] };

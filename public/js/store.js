@@ -18,6 +18,12 @@ const productById = (id) => PRODUCTS.find((p) => p.id === id);
 async function init() {
   S = await api('/api/settings');
   applyTheme(S);
+  // tienda cerrada al público: solo la dueña (con sesión iniciada en el panel) la ve completa
+  if (S.store_open !== '1') {
+    const isAdmin = await api('/api/admin/me').then(() => true, () => false);
+    if (!isAdmin) return renderComingSoon();
+    document.body.insertAdjacentHTML('afterbegin', `<div class="owner-bar">🔒 La tienda está <b>cerrada al público</b>: la ves porque iniciaste sesión en el panel. Podés hacer compras de prueba. <a href="/admin#lanzamiento">Ir a Puesta en marcha →</a></div>`);
+  }
   renderInfo();
   $('#q').insertAdjacentHTML('beforebegin', icon('search'));
   $('#menu-btn').innerHTML = icon('menu');
@@ -45,6 +51,31 @@ async function init() {
 const ZONES = () => { try { return JSON.parse(S.shipping_zones || '[]'); } catch { return []; } };
 const zoneOf = (place) => ZONES().find((z) => z.places.includes(place));
 const minFree = () => Math.min(...ZONES().map((z) => Number(z.free_from) || Infinity));
+
+// página "Próximamente" mientras la dueña termina de cargar todo
+function renderComingSoon() {
+  const wa = waLink('¡Hola! Quería hacer una consulta.');
+  const handle = (S.instagram || '').match(/instagram\.com\/([^/?#]+)/i);
+  document.title = `${S.name} · Muy pronto`;
+  document.body.innerHTML = `<main class="soon">
+    <div class="soon-card brand-green">
+      <img class="emblem" src="${esc(S.logo || '/img/logo-durand.png')}" alt="">
+      ${wordmarkHTML(S)}
+      <h1>Muy pronto, nuestra tienda online</h1>
+      <p>Estamos preparando todo para que puedas comprar desde tu casa. Mientras tanto, te esperamos en la farmacia o escribinos.</p>
+      <div class="soon-actions">
+        ${S.whatsapp ? `<a class="btn btn-light" href="${wa}" target="_blank" rel="noopener">${WA_SVG.replace('<svg', '<svg width="20" height="20"')} WhatsApp</a>` : ''}
+        ${S.phone ? `<a class="btn btn-light" href="${telHref(S.phone)}">${icon('phone')} ${esc(S.phone)}</a>` : ''}
+        ${S.instagram ? `<a class="btn btn-light" href="${esc(S.instagram)}" target="_blank" rel="noopener">${icon('ig')} ${handle ? '@' + esc(handle[1]) : 'Instagram'}</a>` : ''}
+      </div>
+    </div>
+    <div class="soon-info">
+      <div>${icon('pin')}<span><b>${esc(S.address)}</b><br>${esc(S.city)}${S.maps_url ? `<br><a href="${esc(S.maps_url)}" target="_blank" rel="noopener">Cómo llegar →</a>` : ''}</span></div>
+      <div>${icon('clock')}<span class="pre">${esc(S.hours)}</span></div>
+    </div>
+    <p class="soon-admin"><a href="/admin">Acceso administración</a></p>
+  </main>`;
+}
 
 function renderInfo() {
   const free = Number.isFinite(minFree()) ? minFree() : 0;

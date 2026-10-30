@@ -14,6 +14,7 @@ const { parseCSV, num } = require('./csv');
 const promotions = require('./promotions');
 const rules = require('./rules');
 const claims = require('./claims');
+const launch = require('./launch');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -56,10 +57,14 @@ function safeEqual(a, b) {
   return crypto.timingSafeEqual(ha, hb);
 }
 
-function requireAdmin(req, res, next) {
+function isAdminReq(req) {
   const t = req.cookies.admin_session;
   const exp = t && sessions.get(t);
-  if (!exp || exp < Date.now()) return res.status(401).json({ error: 'No autorizado' });
+  return !!exp && exp > Date.now();
+}
+
+function requireAdmin(req, res, next) {
+  if (!isAdminReq(req)) return res.status(401).json({ error: 'No autorizado' });
   next();
 }
 
@@ -108,7 +113,7 @@ function loadOrder(where, val) {
 app.get('/api/settings', (_req, res) => {
   const s = getSettings();
   // datos internos que no van a la web pública
-  for (const k of ['ml_access_token', 'ml_seller_id', 'page_fixed_monthly', 'page_fee_pct', 'page_units_month', 'default_markup', 'price_rounding', 'shipping_fee', 'free_shipping_from']) delete s[k];
+  for (const k of ['ml_access_token', 'ml_seller_id', 'launch_checks', 'page_fixed_monthly', 'page_fee_pct', 'page_units_month', 'default_markup', 'price_rounding', 'shipping_fee', 'free_shipping_from']) delete s[k];
   s.shipping_zones = JSON.stringify(rules.shippingZones().filter((z) => z.enabled));
   if (!s.owner_phone) s.owner_phone = s.whatsapp;
   res.json(s);
@@ -136,6 +141,8 @@ app.get('/api/categories', (_req, res) => {
 });
 
 app.post('/api/orders', (req, res) => {
+  // mientras la tienda está cerrada solo la dueña (con sesión iniciada) puede hacer compras de prueba
+  if (!launch.isOpen() && !isAdminReq(req)) return res.status(403).json({ error: 'La tienda online todavía no está abierta. ¡Muy pronto!' });
   const b = req.body || {};
   const s = getSettings();
   const email = String(b.email || '').trim();
@@ -248,6 +255,7 @@ admin.get('/dashboard', (_req, res) => {
     low_stock: db.prepare('SELECT COUNT(*) n FROM products WHERE active = 1 AND stock <= 3').get().n,
     unread_messages: db.prepare('SELECT COUNT(*) n FROM messages WHERE read = 0').get().n,
     open_claims: db.prepare("SELECT COUNT(*) n FROM claims WHERE status IN ('abierto','en_revision')").get().n,
+    launch_pending: launch.isOpen() ? 0 : launch.checklist().pending,
   });
 });
 
@@ -564,6 +572,9 @@ admin.put('/settings', (req, res) => {
 });
 
 admin.get('/page-cost', (_req, res) => res.json(rules.pageCost()));
+
+// ----- puesta en marcha (tienda cerrada hasta que la dueña la abre) -----
+launch.register(admin);
 
 // ----- reclamos post-compra (incluye rutas públicas) -----
 claims.register(app, admin);

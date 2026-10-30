@@ -95,3 +95,14 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: .92rem; }
 .side .wordmark, .side .wordmark small, .side .wordmark i { color: #fff; }
 .login .wordmark { color: #046532; }
 .side .brand .logo { background: #fff; border-radius: 50%; padding: 2px; }
+.launch-state { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; background: #fff4d6; border: 2px solid #f1d27a; border-radius: 16px; padding: 16px 20px; margin-bottom: 18px; }
+.launch-state.open { background: #e3f6ec; border-color: #9fd9b8; }
+.launch-state span { color: var(--muted); }
+.launch-progress { height: 12px; background: var(--line); border-radius: 99px; overflow: hidden; }
+.launch-progress div { height: 100%; background: var(--primary); border-radius: 99px; }
+.checklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.checklist li { display: flex; gap: 12px; align-items: center; padding: 10px 6px; border-bottom: 1px solid var(--line); }
+.checklist li > div { flex: 1; }
+.checklist .mark { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-weight: 900; background: #fde8e7; color: #b3261e; flex: none; }
+.checklist li.ok .mark { background: #e3f6ec; color: #17794a; }
+.checklist input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--primary); flex: none; margin: 0 2px; }
