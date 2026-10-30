@@ -206,6 +206,10 @@ const orderCols = db.prepare('PRAGMA table_info(orders)').all().map((c) => c.nam
 if (!orderCols.includes('shipping_zone')) db.exec("ALTER TABLE orders ADD COLUMN shipping_zone TEXT DEFAULT ''");
 if (!orderCols.includes('arrival_code')) db.exec('ALTER TABLE orders ADD COLUMN arrival_code TEXT');
 if (!orderCols.includes('delivered_at')) db.exec('ALTER TABLE orders ADD COLUMN delivered_at TEXT');
+// reparto: cómo quiere recibirlo el cliente, ubicación para armar el recorrido y quién lo lleva
+for (const [col, type] of [['delivery_pref', "TEXT DEFAULT 'mano'"], ['lat', 'REAL'], ['lng', 'REAL'], ['driver', 'TEXT'], ['out_at', 'TEXT'], ['delivery_note', 'TEXT']]) {
+  if (!orderCols.includes(col)) db.exec(`ALTER TABLE orders ADD COLUMN ${col} ${type}`);
+}
 if (!productCols.includes('barcode')) db.exec("ALTER TABLE products ADD COLUMN barcode TEXT DEFAULT ''");
 
 const DEFAULT_SETTINGS = {
@@ -251,6 +255,9 @@ const DEFAULT_SETTINGS = {
   ]),
   default_markup: '40',        // % de ganancia sobre costo para productos nuevos de facturas
   price_rounding: '10',        // redondeo hacia arriba de precios calculados ($)
+  delivery_pin: String(100000 + require('crypto').randomInt(900000)), // PIN de la página de reparto
+  pharmacy_lat: '-34.6086594',  // ubicación de la farmacia (Google Maps), punto de salida del recorrido
+  pharmacy_lng: '-58.4389666',
   store_open: '0',             // la tienda arranca cerrada al público hasta que la dueña la abra
   launch_checks: '{}',          // ítems de la lista de puesta en marcha que confirma la dueña
   ml_seller_id: '614432576',  // cuenta de Mercado Libre de la farmacia (listado.mercadolibre.com.ar/_CustId_614432576)

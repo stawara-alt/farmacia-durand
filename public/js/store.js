@@ -330,6 +330,10 @@ function openCheckout() {
           <div class="field"><label>Dirección</label><input type="text" name="address" autocomplete="street-address" placeholder="Calle, número, piso/depto"></div>
         </div>
         <p class="muted" style="font-size:.85rem;margin:-6px 0 12px">Enviamos solo a ${esc(ZONES().map((z) => z.name).join(', '))}. ¿Tu localidad no está? Elegí retiro en la farmacia o <a href="${waLink('Hola! Quería consultar si hacen envíos a mi zona.')}" target="_blank" rel="noopener">consultanos por WhatsApp</a>.</p>
+        <div class="field"><label>¿Cómo te lo entregamos?</label>
+          <div class="options three">
+            ${Object.entries(DELIVERY_PREFS).map(([k, l], i) => `<label class="option pref"><input type="radio" name="delivery_pref" value="${k}" ${i === 0 ? 'checked' : ''}> <span>${esc(l)}</span></label>`).join('')}
+          </div></div>
       </div>
       <div class="field"><label>Medio de pago</label>
         <div class="options">

@@ -36,6 +36,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: .92rem; }
 .st-en_preparacion { background: #efe9ff; color: #5a3fc0; }
 .st-en_envio, .st-listo_retiro { background: #e0f7fa; color: #00707a; }
 .st-entregado { background: #e3f6ec; color: #17794a; }
+.st-no_entregado { background: #fdecea; color: #b42318; }
 .st-rechazado, .st-cancelado { background: #fde8e7; color: #b3261e; }
 .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
 .filters input[type=search] { max-width: 280px; }

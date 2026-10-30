@@ -16,6 +16,8 @@ const promotions = require('./promotions');
 const rules = require('./rules');
 const claims = require('./claims');
 const launch = require('./launch');
+const geo = require('./geo');
+const delivery = require('./delivery');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -152,6 +154,7 @@ app.post('/api/orders', (req, res) => {
   if (!['transferencia', 'qr'].includes(b.payment_method)) return res.status(400).json({ error: 'Elegí un medio de pago' });
   if (!['envio', 'retiro'].includes(b.delivery_method)) return res.status(400).json({ error: 'Elegí envío o retiro' });
   if (b.delivery_method === 'envio' && !String(b.address || '').trim()) return res.status(400).json({ error: 'Ingresá la dirección de envío' });
+  const deliveryPref = ['mano', 'portero', 'puerta'].includes(b.delivery_pref) ? b.delivery_pref : 'mano';
   if (b.delivery_method === 'envio' && !rules.zoneFor(b.city, s)) {
     return res.status(400).json({ error: `Por ahora no hacemos envíos a "${b.city || 'esa localidad'}". Podés elegir retiro en la farmacia o escribirnos por WhatsApp.` });
   }
@@ -176,8 +179,8 @@ app.post('/api/orders', (req, res) => {
       const quote = b.delivery_method === 'envio' ? rules.shippingQuote(subtotal, b.city, s) : null;
       const shipping = quote ? quote.fee : 0;
       const code = crypto.randomBytes(12).toString('base64url');
-      const r = db.prepare(`INSERT INTO orders (code, customer_name, email, phone, delivery_method, address, city, shipping_zone, notes, payment_method, subtotal, shipping_fee, total)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(code, b.customer_name.trim(), email, b.phone || '', b.delivery_method, b.address || '', quote ? b.city : '', quote ? quote.zone : '', b.notes || '', b.payment_method, subtotal, shipping, round2(subtotal + shipping));
+      const r = db.prepare(`INSERT INTO orders (code, customer_name, email, phone, delivery_method, address, city, shipping_zone, delivery_pref, notes, payment_method, subtotal, shipping_fee, total)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(code, b.customer_name.trim(), email, b.phone || '', b.delivery_method, b.address || '', quote ? b.city : '', quote ? quote.zone : '', b.delivery_method === 'envio' ? deliveryPref : null, b.notes || '', b.payment_method, subtotal, shipping, round2(subtotal + shipping));
       const orderId = r.lastInsertRowid;
       for (const { p, qty, price } of lines) {
         const imgs = JSON.parse(p.images || '[]');
@@ -194,6 +197,7 @@ app.post('/api/orders', (req, res) => {
       try { promotions.subscribe(email, b.customer_name, 'compra'); } catch {}
     }
     mailer.sendOrderCreated(order);
+    geo.locateOrder(order.id).catch(() => {}); // ubicación para el recorrido de reparto (en segundo plano)
     res.json({ ok: true, code: order.code, id: order.id });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -210,7 +214,7 @@ app.get('/api/orders/:code', (req, res) => {
     subtotal: o.subtotal, shipping_fee: o.shipping_fee, total: o.total, created_at: o.created_at, has_receipt: !!o.receipt, subscribed: promotions.isSubscribed(o.email),
     items: o.items.map(({ name, image, unit_price, qty }) => ({ name, image, unit_price, qty })),
     history: o.history,
-    arrival_code: o.status === 'entregado' ? o.arrival_code : null, delivered_at: o.delivered_at, shipping_zone: o.shipping_zone,
+    delivery_pref: o.delivery_pref, arrival_code: o.status === 'entregado' ? o.arrival_code : null, delivered_at: o.delivered_at, shipping_zone: o.shipping_zone,
     claim_until: claims.claimDeadline(o, s), claims: claims.forOrder(o.id),
     owner_phone: s.owner_phone || s.whatsapp,
     payment: { bank_holder: s.bank_holder, bank_cuit: s.bank_cuit, bank_name: s.bank_name, bank_cbu: s.bank_cbu, bank_alias: s.bank_alias, qr_image: s.qr_image },
@@ -281,36 +285,47 @@ admin.get('/orders/:id', (req, res) => {
   res.json(o);
 });
 
+// cambia el estado de un pedido: devuelve/descuenta stock si se cancela o se reactiva, y al entregarlo genera el código de llegada.
+// Lo usan el panel y la página de reparto.
+function setOrderStatus(orderId, status, note = '', extra = {}) {
+  if (!STATUSES.includes(status)) throw new Error('Estado inválido');
+  return db.transaction(() => {
+    const o = loadOrder('id', orderId);
+    if (!o) throw new Error('Pedido no encontrado');
+    const wasInactive = INACTIVE.includes(o.status), willInactive = INACTIVE.includes(status);
+    if (!wasInactive && willInactive) {
+      for (const it of o.items) if (it.product_id) {
+        db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(it.qty, it.product_id);
+        recordStock(it.product_id, it.qty, db.prepare('SELECT stock FROM products WHERE id = ?').get(it.product_id).stock, 'cancelacion', `pedido #${o.id}`);
+      }
+    } else if (wasInactive && !willInactive) {
+      for (const it of o.items) if (it.product_id) {
+        const p = db.prepare('SELECT stock, name FROM products WHERE id = ?').get(it.product_id);
+        if (p.stock < it.qty) throw new Error(`No hay stock para reactivar: ${p.name}`);
+        db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(it.qty, it.product_id);
+        recordStock(it.product_id, -it.qty, p.stock - it.qty, 'venta', `pedido #${o.id} (reactivado)`);
+      }
+    }
+    db.prepare("UPDATE orders SET status = ?, updated_at = datetime('now','localtime') WHERE id = ?").run(status, o.id);
+    // al entregarse se genera el código de llegada, que habilita el reclamo post-compra
+    if (status === 'entregado' && !o.arrival_code) {
+      db.prepare("UPDATE orders SET arrival_code = ?, delivered_at = datetime('now','localtime') WHERE id = ?").run(claims.newArrivalCode(), o.id);
+    }
+    for (const [k, v] of Object.entries(extra)) if (['driver', 'out_at', 'delivery_note'].includes(k)) db.prepare(`UPDATE orders SET ${k} = ? WHERE id = ?`).run(v, o.id);
+    db.prepare('INSERT INTO order_status_history (order_id, status, note) VALUES (?, ?, ?)').run(o.id, status, note);
+    return loadOrder('id', o.id);
+  })();
+}
+
+function notifyStatus(order, note) {
+  mailer.sendStatusChanged(order, note, order.status === 'entregado' && order.arrival_code ? claims.deliveredBlock(order) : '');
+}
+
 admin.patch('/orders/:id/status', (req, res) => {
   const { status, note = '', notify = true } = req.body || {};
-  if (!STATUSES.includes(status)) return res.status(400).json({ error: 'Estado inválido' });
   try {
-    const order = db.transaction(() => {
-      const o = loadOrder('id', req.params.id);
-      if (!o) throw new Error('Pedido no encontrado');
-      const wasInactive = INACTIVE.includes(o.status), willInactive = INACTIVE.includes(status);
-      if (!wasInactive && willInactive) {
-        for (const it of o.items) if (it.product_id) {
-          db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(it.qty, it.product_id);
-          recordStock(it.product_id, it.qty, db.prepare('SELECT stock FROM products WHERE id = ?').get(it.product_id).stock, 'cancelacion', `pedido #${o.id}`);
-        }
-      } else if (wasInactive && !willInactive) {
-        for (const it of o.items) if (it.product_id) {
-          const p = db.prepare('SELECT stock, name FROM products WHERE id = ?').get(it.product_id);
-          if (p.stock < it.qty) throw new Error(`No hay stock para reactivar: ${p.name}`);
-          db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(it.qty, it.product_id);
-          recordStock(it.product_id, -it.qty, p.stock - it.qty, 'venta', `pedido #${o.id} (reactivado)`);
-        }
-      }
-      db.prepare("UPDATE orders SET status = ?, updated_at = datetime('now','localtime') WHERE id = ?").run(status, o.id);
-      // al entregarse se genera el código de llegada, que habilita el reclamo post-compra
-      if (status === 'entregado' && !o.arrival_code) {
-        db.prepare("UPDATE orders SET arrival_code = ?, delivered_at = datetime('now','localtime') WHERE id = ?").run(claims.newArrivalCode(), o.id);
-      }
-      db.prepare('INSERT INTO order_status_history (order_id, status, note) VALUES (?, ?, ?)').run(o.id, status, note);
-      return loadOrder('id', o.id);
-    })();
-    if (notify) mailer.sendStatusChanged(order, note, order.status === 'entregado' && order.arrival_code ? claims.deliveredBlock(order) : '');
+    const order = setOrderStatus(req.params.id, status, note);
+    if (notify) notifyStatus(order, note);
     res.json(order);
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -633,6 +648,9 @@ admin.get('/page-cost', (_req, res) => res.json(rules.pageCost()));
 // ----- puesta en marcha (tienda cerrada hasta que la dueña la abre) -----
 launch.register(admin);
 
+// ----- reparto: etiquetas con QR y página del repartidor (incluye rutas públicas) -----
+delivery.register(app, admin, { setOrderStatus, notifyStatus });
+
 // ----- reclamos post-compra (incluye rutas públicas) -----
 claims.register(app, admin);
 
@@ -646,6 +664,7 @@ app.use('/api/admin', admin);
 
 // ================= PÁGINAS =================
 app.use(express.static(PUBLIC, { extensions: ['html'] }));
+app.get('/vendor/jsqr.js', (_req, res) => res.sendFile(path.join(ROOT, 'node_modules', 'jsqr', 'dist', 'jsQR.js')));
 app.get('/vendor/chart.umd.js', (_req, res) => res.sendFile(path.join(ROOT, 'node_modules', 'chart.js', 'dist', 'chart.umd.js')));
 app.get('/pedido/:code', (_req, res) => res.sendFile(path.join(PUBLIC, 'pedido.html')));
 app.get('/admin', (_req, res) => res.sendFile(path.join(PUBLIC, 'admin.html')));

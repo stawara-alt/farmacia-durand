@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#038b37">
+  <title>Reparto | Farmacia</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Nunito:wght@400;600;700;800&family=Roboto+Slab:wght@400;700&family=Libre+Baskerville:ital@1&display=swap">
+  <link rel="stylesheet" href="/css/styles.css">
+  <style>
+    body { background: #f2f5f4; }
+    .rp { max-width: 560px; margin: 0 auto; padding: 14px 14px 90px; }
+    .rp-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+    .rp-head .brand .logo { width: 40px; height: 40px; }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+    .stat { background: #fff; border-radius: 14px; padding: 10px; text-align: center; box-shadow: var(--shadow); }
+    .stat b { display: block; font-family: Montserrat, sans-serif; font-size: 1.6rem; line-height: 1.1; }
+    .stat span { font-size: .78rem; color: var(--muted); font-weight: 700; }
+    .scan-btn { width: 100%; font-size: 1.15rem; padding: 18px; border-radius: 18px; margin-bottom: 8px; }
+    .row-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+    .row-btns .btn { flex: 1; }
+    .stop { background: #fff; border-radius: 18px; padding: 14px; box-shadow: var(--shadow); margin-bottom: 12px; }
+    .stop-top { display: flex; gap: 12px; align-items: flex-start; }
+    .stop .n { width: 34px; height: 34px; border-radius: 50%; background: var(--primary); color: #fff; display: grid; place-items: center; font-weight: 900; flex: none; }
+    .stop .who { font-weight: 800; font-size: 1.05rem; }
+    .stop .addr { font-size: 1.05rem; margin: 2px 0; }
+    .stop .pref { display: inline-block; margin-top: 6px; padding: 3px 10px; border-radius: 99px; background: #fff4d6; color: #7a5200; font-weight: 800; font-size: .85rem; }
+    .stop .meta { color: var(--muted); font-size: .85rem; margin-top: 4px; }
+    .stop-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
+    .stop-actions .btn { padding: 10px 6px; font-size: .9rem; }
+    .stop-final { display: grid; grid-template-columns: 2fr 1fr; gap: 6px; margin-top: 6px; }
+    .stop-final .btn { padding: 14px 8px; font-size: 1rem; }
+    .btn-ok { background: #17794a; color: #fff; }
+    .btn-fail { background: #fff; color: #b3261e; border: 2px solid #f3c7c3; }
+    .empty-box { background: #fff; border-radius: 18px; padding: 28px 18px; text-align: center; box-shadow: var(--shadow); }
+    .cam { position: fixed; inset: 0; background: #000; z-index: 80; display: flex; flex-direction: column; }
+    .cam video { flex: 1; width: 100%; object-fit: cover; }
+    .cam .frame { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+    .cam .frame div { width: 64vmin; height: 64vmin; border: 4px solid #fff; border-radius: 24px; box-shadow: 0 0 0 9999px rgba(0,0,0,.45); }
+    .cam .bar { padding: 14px; display: flex; gap: 10px; background: #000; }
+    .cam .bar .btn { flex: 1; }
+    .cam .msg { position: absolute; top: 16px; left: 16px; right: 16px; color: #fff; text-align: center; font-weight: 800; text-shadow: 0 1px 4px #000; }
+    .sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 70; display: flex; align-items: flex-end; }
+    .sheet { background: #fff; width: 100%; max-width: 560px; margin: 0 auto; border-radius: 22px 22px 0 0; padding: 18px 16px 24px; }
+    .sheet .options { grid-template-columns: 1fr; }
+    .flash { position: fixed; left: 12px; right: 12px; top: 12px; z-index: 90; padding: 14px 16px; border-radius: 14px; font-weight: 800; color: #fff; text-align: center; box-shadow: var(--shadow-lg); }
+    .flash.ok { background: #17794a; } .flash.err { background: #b3261e; }
+  </style>
+</head>
+<body>
+  <main class="rp" id="app"><p class="muted">Cargando…</p></main>
+  <div id="layer"></div>
+  <script src="/vendor/jsqr.js"></script>
+  <script src="/js/common.js"></script>
+  <script>
+    let S = {}, R = null, me = null, timer;
+    const params = new URLSearchParams(location.search);
+
+    function flash(msg, ok = true) {
+      const d = document.createElement('div');
+      d.className = 'flash ' + (ok ? 'ok' : 'err'); d.textContent = msg; document.body.appendChild(d);
+      if (navigator.vibrate) navigator.vibrate(ok ? 80 : [80, 60, 80]);
+      setTimeout(() => d.remove(), ok ? 2600 : 4500);
+    }
+
+    function header() {
+      return `<div class="rp-head"><span class="brand">${logoHTML(S)}</span>
+        ${me ? `<div style="text-align:right"><b>${esc(me)}</b><br><a href="#" id="logout" class="muted" style="font-size:.85rem">Salir</a></div>` : ''}</div>`;
+    }
+
+    function renderLogin(err = '') {
+      $('#app').innerHTML = `${header()}<form class="info-card" id="login">
+        <h2 style="margin-top:0">Reparto</h2>
+        <p class="muted">Ingresá con tu nombre y el PIN que te dio la farmacia.</p>
+        ${err ? `<div class="error-box">${esc(err)}</div>` : ''}
+        <div class="field"><label>Tu nombre</label><input type="text" name="name" autocomplete="name" required value="${esc(localStorage.getItem('driver_name') || '')}"></div>
+        <div class="field"><label>PIN</label><input type="password" name="pin" inputmode="numeric" autocomplete="one-time-code" required></div>
+        <button class="btn btn-primary btn-block">Ingresar</button></form>`;
+      $('#login').onsubmit = async (e) => {
+        e.preventDefault();
+        const body = Object.fromEntries(new FormData(e.target));
+        try { const r = await api('/api/reparto/login', { method: 'POST', body }); try { localStorage.setItem('driver_name', r.name); } catch {} me = r.name; start(); }
+        catch (er) { renderLogin(er.message); }
+      };
+    }
+
+    async function load() {
+      try { R = await api('/api/reparto/route'); render(); }
+      catch (e) { if (e.status === 401) { me = null; clearInterval(timer); renderLogin(); } }
+    }
+
+    function render() {
+      const n = R.stops.length;
+      $('#app').innerHTML = `${header()}
+        <div class="stats">
+          <div class="stat"><b>${n}</b><span>para entregar</span></div>
+          <div class="stat"><b>${R.total_km}</b><span>km aprox.</span></div>
+          <div class="stat"><b>${R.delivered_today}</b><span>entregados hoy</span></div>
+        </div>
+        <button class="btn btn-primary scan-btn" id="scan">📷 Escanear etiqueta</button>
+        <div class="row-btns">
+          <button class="btn btn-light" id="manual">⌨️ Ingresar n° de pedido</button>
+          ${R.maps_links.map((l, i) => `<a class="btn btn-ghost" href="${l}" target="_blank" rel="noopener">🗺️ Recorrido${R.maps_links.length > 1 ? ' ' + (i + 1) : ''}</a>`).join('')}
+        </div>
+        ${n ? `<p class="muted" style="margin:0 0 8px;font-size:.88rem">Orden recomendado saliendo desde la farmacia, siempre al pedido más cercano.</p>` + R.stops.map((o, i) => `
+          <div class="stop">
+            <div class="stop-top"><span class="n">${i + 1}</span><div style="flex:1">
+              <div class="who">${esc(o.customer_name)} <span class="muted" style="font-weight:600">#${o.id}</span></div>
+              <div class="addr">${esc(o.address)}</div>
+              <div class="muted">${esc(o.city)}${o.zone ? ' · ' + esc(o.zone) : ''}${o.km_from_prev != null ? ` · ${o.km_from_prev} km` : ''}</div>
+              <span class="pref">${esc(DELIVERY_PREFS[o.delivery_pref] || o.pref_label)}</span>
+              ${o.notes ? `<div class="meta">📝 ${esc(o.notes)}</div>` : ''}
+              <div class="meta">📦 ${o.units} unidad(es): ${o.items.map((it) => `${esc(it.name)} ×${it.qty}`).join(', ')}</div>
+            </div></div>
+            <div class="stop-actions">
+              <a class="btn btn-ghost" href="${o.maps}" target="_blank" rel="noopener">🧭 Ir</a>
+              <a class="btn btn-ghost" href="${o.phone ? telHref(o.phone) : '#'}">📞 Llamar</a>
+              <a class="btn btn-ghost" href="https://wa.me/${String(o.phone || '').replace(/\D/g, '').replace(/^0?(\d{10})$/, '549$1')}" target="_blank" rel="noopener">💬 WhatsApp</a>
+            </div>
+            <div class="stop-final">
+              <button class="btn btn-ok" data-ok="${o.id}">✅ Entregado</button>
+              <button class="btn btn-fail" data-fail="${o.id}">✗ No pude</button>
+            </div>
+          </div>`).join('')
+        : `<div class="empty-box"><div style="font-size:2.4rem">🛵</div><h3>No tenés pedidos en camino</h3><p class="muted">Escaneá las etiquetas de los paquetes que te llevás para empezar el recorrido.</p></div>`}`;
+      $('#logout').onclick = async (e) => { e.preventDefault(); await api('/api/reparto/logout', { method: 'POST' }); me = null; clearInterval(timer); renderLogin(); };
+      $('#scan').onclick = openCamera;
+      $('#manual').onclick = async () => {
+        const v = prompt('Número de pedido (está en la etiqueta):');
+        if (v) scan({ o: v.replace(/\D/g, ''), manual: '1' });
+      };
+      $$('[data-ok]').forEach((b) => (b.onclick = () => deliverSheet(R.stops.find((o) => o.id == b.dataset.ok))));
+      $$('[data-fail]').forEach((b) => (b.onclick = () => failSheet(R.stops.find((o) => o.id == b.dataset.fail))));
+    }
+
+    async function scan(body) {
+      try {
+        const r = await api('/api/reparto/scan', { method: 'POST', body });
+        flash(r.already ? `#${r.id} ya estaba en tu recorrido` : `✓ #${r.id} (${r.customer_name}) en camino`);
+        load();
+      } catch (e) { flash(e.message, false); }
+    }
+
+    // ----- cámara: lee el QR de la etiqueta -----
+    async function openCamera() {
+      if (!navigator.mediaDevices?.getUserMedia) { flash('Este celular no permite usar la cámara desde la página. Ingresá el número a mano.', false); return; }
+      $('#layer').innerHTML = `<div class="cam"><video playsinline muted></video><div class="frame"><div></div></div>
+        <div class="msg">Apuntá al QR de la etiqueta</div><div class="bar"><button class="btn btn-light" id="cam-close">Cerrar</button></div></div>`;
+      const video = $('.cam video'), canvas = document.createElement('canvas'), ctx = canvas.getContext('2d', { willReadFrequently: true });
+      let stream, stop = false, last = '';
+      const close = () => { stop = true; stream && stream.getTracks().forEach((t) => t.stop()); $('#layer').innerHTML = ''; };
+      $('#cam-close').onclick = close;
+      try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false }); }
+      catch { close(); flash('No se pudo abrir la cámara. Revisá el permiso o ingresá el número a mano.', false); return; }
+      video.srcObject = stream; await video.play();
+      const tick = () => {
+        if (stop) return;
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+          canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+          ctx.drawImage(video, 0, 0);
+          const code = jsQR(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height, { inversionAttempts: 'dontInvert' });
+          if (code && code.data && code.data !== last) {
+            last = code.data;
+            let o, k;
+            try { const u = new URL(code.data); o = u.searchParams.get('o'); k = u.searchParams.get('k'); } catch {}
+            if (o && k) { close(); scan({ o, k }); return; }
+            $('.cam .msg').textContent = 'Ese QR no es una etiqueta de pedido';
+          }
+        }
+        requestAnimationFrame(tick);
+      };
+      tick();
+    }
+
+    function sheet(html) {
+      $('#layer').innerHTML = `<div class="sheet-bg"><div class="sheet">${html}</div></div>`;
+      const bg = $('.sheet-bg');
+      bg.addEventListener('click', (e) => { if (e.target === bg || e.target.closest('[data-cancel]')) $('#layer').innerHTML = ''; });
+    }
+
+    function deliverSheet(o) {
+      sheet(`<h3 style="margin-top:0">Entregar #${o.id} · ${esc(o.customer_name)}</h3>
+        <p class="muted" style="margin-top:-6px">${esc(o.address)}, ${esc(o.city)}</p>
+        <div class="field"><label>¿Cómo lo entregaste?</label><div class="options">
+          ${Object.entries(DELIVERY_PREFS).map(([k, l]) => `<label class="option"><input type="radio" name="how" value="${k}" ${k === o.delivery_pref ? 'checked' : ''}> ${l}</label>`).join('')}</div></div>
+        <div class="field"><label>Nota (opcional)</label><input type="text" id="dl-note" placeholder="Ej: lo recibió la hija"></div>
+        <div class="stop-final"><button class="btn btn-ok" id="dl-ok">✅ Confirmar entrega</button><button class="btn btn-light" data-cancel>Cancelar</button></div>`);
+      $('#dl-ok').onclick = async () => {
+        $('#dl-ok').disabled = true;
+        try { await api('/api/reparto/deliver', { method: 'POST', body: { id: o.id, how: $('input[name=how]:checked')?.value, note: $('#dl-note').value } }); $('#layer').innerHTML = ''; flash(`✓ #${o.id} entregado`); load(); }
+        catch (e) { flash(e.message, false); $('#dl-ok').disabled = false; }
+      };
+    }
+
+    function failSheet(o) {
+      sheet(`<h3 style="margin-top:0">No pude entregar #${o.id}</h3>
+        <div class="field"><label>¿Qué pasó?</label><div class="options">
+          ${Object.entries(R.fail_reasons).map(([k, l], i) => `<label class="option"><input type="radio" name="why" value="${k}" ${i ? '' : 'checked'}> ${l}</label>`).join('')}</div></div>
+        <div class="field"><label>Nota (opcional)</label><input type="text" id="fl-note" placeholder="Ej: toqué timbre 2 veces"></div>
+        <p class="muted" style="font-size:.85rem">Avisamos al cliente por mail. Traé el paquete de vuelta a la farmacia.</p>
+        <div class="stop-final"><button class="btn btn-fail" id="fl-ok">Confirmar</button><button class="btn btn-light" data-cancel>Cancelar</button></div>`);
+      $('#fl-ok').onclick = async () => {
+        $('#fl-ok').disabled = true;
+        try { await api('/api/reparto/fail', { method: 'POST', body: { id: o.id, reason: $('input[name=why]:checked').value, note: $('#fl-note').value } }); $('#layer').innerHTML = ''; flash(`#${o.id} marcado como no entregado`, true); load(); }
+        catch (e) { flash(e.message, false); $('#fl-ok').disabled = false; }
+      };
+    }
+
+    async function start() {
+      clearInterval(timer);
+      // si se abrió escaneando el QR con la cámara del celular, se suma ese pedido
+      if (params.get('o') && params.get('k')) {
+        const body = { o: params.get('o'), k: params.get('k') };
+        history.replaceState(null, '', location.pathname);
+        await scan(body);
+      }
+      await load();
+      timer = setInterval(load, 30000);
+    }
+
+    (async () => {
+      S = await api('/api/settings');
+      applyTheme(S);
+      document.title = `Reparto | ${S.name}`;
+      try { me = (await api('/api/reparto/me')).name; start(); } catch { renderLogin(); }
+    })();
+  </script>
+</body>
+</html>

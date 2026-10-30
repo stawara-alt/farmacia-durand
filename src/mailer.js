@@ -1,11 +1,17 @@
 const nodemailer = require('nodemailer');
 const { getSettings } = require('./db');
 
+const PREF_LABELS = { mano: 'Entregar en mano', portero: 'Dejar al portero / encargado', puerta: 'Dejar en la puerta' };
+const deliveryText = (o) => (o.delivery_method === 'envio'
+  ? `Envío a ${esc(o.address)}${o.city ? ', ' + esc(o.city) : ''} (${PREF_LABELS[o.delivery_pref] || PREF_LABELS.mano})`
+  : 'Retiro en local');
+
 const STATUS = {
   pendiente: { label: 'Pendiente de confirmación', emoji: '🕒', text: 'Recibimos tu pedido. Lo vamos a revisar y confirmar a la brevedad.' },
   aceptado: { label: 'Pedido aceptado', emoji: '✅', text: '¡Confirmamos tu pago y aceptamos tu pedido!' },
   en_preparacion: { label: 'En preparación', emoji: '📦', text: 'Estamos preparando tu pedido.' },
   en_envio: { label: 'En camino', emoji: '🚚', text: 'Tu pedido salió y está en camino.' },
+  no_entregado: { label: 'No pudimos entregarlo', emoji: '📭', text: 'Pasamos por tu domicilio pero no pudimos entregar el pedido. Te vamos a contactar para coordinar otra entrega, o podés retirarlo en la farmacia.' },
   listo_retiro: { label: 'Listo para retirar', emoji: '🏪', text: 'Tu pedido está listo para retirar en la farmacia.' },
   entregado: { label: 'Entregado', emoji: '🎉', text: '¡Tu pedido llegó! Gracias por elegirnos.' },
   rechazado: { label: 'Rechazado', emoji: '⚠️', text: 'No pudimos aceptar tu pedido. Comunicate con nosotros para más información.' },
@@ -99,6 +105,7 @@ function sendOrderCreated(order) {
     <p>Te vamos a avisar por mail cada vez que cambie el estado. También podés seguirlo en todo momento desde este link:</p>
     ${button(s, link, 'Ver el estado de mi pedido')}
     <p style="font-size:12px;color:#5b6b66;word-break:break-all">${link}</p>
+    <p>Entrega: <b>${deliveryText(order)}</b></p>
     ${paymentBlock(s, order)}
     ${itemsTable(order)}`);
   send(order.email, `Recibimos tu pedido #${order.id} - ${s.name}`, html);
@@ -109,7 +116,7 @@ function sendOrderCreated(order) {
     send(adminTo, `🛒 Nuevo pedido #${order.id} - ${money(order.total)}`, layout(s, `
       <h2>Nuevo pedido #${order.id}</h2>
       <p>${esc(order.customer_name)} · ${esc(order.email)} · ${esc(order.phone)}</p>
-      <p>Pago: ${order.payment_method === 'qr' ? 'QR' : 'Transferencia'} · Entrega: ${order.delivery_method === 'envio' ? 'Envío a ' + esc(order.address) : 'Retiro en local'}</p>
+      <p>Pago: ${order.payment_method === 'qr' ? 'QR' : 'Transferencia'} · Entrega: ${deliveryText(order)}</p>
       ${itemsTable(order)}
       ${button(s, `${baseUrl()}/admin`, 'Abrir panel de administración')}`));
   }

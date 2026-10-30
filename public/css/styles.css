@@ -192,6 +192,8 @@ footer.site .copy { border-top: 1px solid rgba(255,255,255,.12); margin-top: 28p
 .ship-hint { background: var(--primary-soft); color: var(--primary-dark); border-radius: 12px; padding: 10px 12px; font-size: .88rem; font-weight: 700; }
 
 .options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.options.three { grid-template-columns: repeat(3, 1fr); }
+.option.pref { padding: 10px 12px; font-size: .88rem; line-height: 1.25; }
 .option { border: 2px solid var(--line); border-radius: 14px; padding: 14px; cursor: pointer; display: flex; gap: 10px; align-items: center; font-weight: 700; }
 .option input { accent-color: var(--primary); }
 .option:has(input:checked) { border-color: var(--primary); background: var(--primary-soft); }
@@ -233,7 +235,7 @@ footer.site .copy { border-top: 1px solid rgba(255,255,255,.12); margin-top: 28p
   .qr-box { justify-self: center; }
 }
 @media (max-width: 560px) {
-  .perks, .two, .options { grid-template-columns: 1fr; }
+  .perks, .two, .options, .options.three { grid-template-columns: 1fr; }
   .grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
   .card .body { padding: 10px 12px 12px; }
   .price { font-size: 1.05rem; }

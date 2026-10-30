@@ -34,6 +34,7 @@
       entregado: '¡Pedido entregado! Gracias por confiar en nosotros.',
       rechazado: 'No pudimos aceptar tu pedido. Comunicate con nosotros para más información.',
       cancelado: 'Este pedido fue cancelado.',
+      no_entregado: 'Pasamos por tu domicilio pero no pudimos entregar el pedido. Te vamos a contactar para coordinar otra entrega, o podés retirarlo en la farmacia.',
     };
 
     async function load() {
@@ -50,7 +51,7 @@
     function render(o) {
       const flow = o.delivery_method === 'retiro' ? FLOW_RETIRO : FLOW_ENVIO;
       const bad = ['rechazado', 'cancelado'].includes(o.status);
-      const idx = flow.findIndex(([k]) => k === o.status);
+      const idx = flow.findIndex(([k]) => k === (o.status === 'no_entregado' ? 'en_envio' : o.status));
       const pct = idx <= 0 ? 0 : (idx / (flow.length - 1)) * 88;
       const isNew = new URLSearchParams(location.search).has('nuevo');
       const showPay = o.status === 'pendiente';
@@ -105,7 +106,7 @@
             <div class="sum-row"><span>Envío</span><span>${o.shipping_fee ? money(o.shipping_fee) : 'Gratis'}</span></div>
             <div class="sum-row total"><span>Total</span><span>${money(o.total)}</span></div>
           </div>
-          <p class="muted" style="margin-bottom:0">${o.delivery_method === 'envio' ? `🚚 Envío a: ${esc(o.address)}${o.city ? ', ' + esc(o.city) : ''}` : `🏪 Retiro en ${esc(S.address)}`} · Pago: ${o.payment_method === 'qr' ? 'QR' : 'Transferencia'}</p>
+          <p class="muted" style="margin-bottom:0">${o.delivery_method === 'envio' ? `🚚 Envío a: ${esc(o.address)}${o.city ? ', ' + esc(o.city) : ''}${o.delivery_pref ? ` · ${esc(DELIVERY_PREFS[o.delivery_pref] || '')}` : ''}` : `🏪 Retiro en ${esc(S.address)}`} · Pago: ${o.payment_method === 'qr' ? 'QR' : 'Transferencia'}</p>
         </div>
 
         <div class="track-card">

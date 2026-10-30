@@ -81,6 +81,18 @@ En **Configuración → Zonas de envío** se definen las zonas (nombre, costo, e
 - **Botón de arrepentimiento** (obligatorio para tiendas online en Argentina, Res. 424/2020): en el pie de la web; se identifica con número de pedido + email de la compra.
 - En **Panel → Reclamos** la dueña ve fotos y conversación, cambia el estado (Nuevo / En revisión / Resuelto / Rechazado) y responde; el cliente recibe cada respuesta por email y la ve en la página de su pedido.
 
+## Reparto (repartidor con el celular)
+
+En el checkout el cliente elige cómo quiere recibir el envío: **en mano**, **al portero / encargado** o **en la puerta**.
+
+1. **Panel → Reparto → Imprimir etiquetas**: una etiqueta por paquete con número de pedido, nombre, dirección, teléfono, cómo entregarlo, notas y un **QR**. (También desde cada pedido: *🏷️ Imprimir etiqueta*.)
+2. El repartidor abre `/reparto` en su celular (el panel muestra el link y un QR) y entra con su nombre y el **PIN** (se cambia en Panel → Reparto).
+3. **Escanea** la etiqueta con la cámara (o escribe el número de pedido): el pedido pasa de *En preparación* a **En camino** y al cliente le llega el email. Los pedidos sin pago confirmado no se pueden sacar.
+4. Ve **cuántos pedidos lleva**, la **dirección** de cada uno en el **orden recomendado** (desde la farmacia, siempre al más cercano), los km aproximados, y botones para abrir el **recorrido en Google Maps**, llamar o escribir por WhatsApp.
+5. Al entregar toca **✅ Entregado** (en mano / portero / puerta + nota): el cliente recibe el email con su **código de llegada**. Si no pudo, toca **No pude** con el motivo (no había nadie, dirección incorrecta, etc.): el pedido queda en *No entregado*, el cliente recibe un aviso y en el panel aparece para **volver a preparación**.
+
+Las direcciones se ubican con OpenStreetMap (gratis); si no encuentra una, usa el centro de la localidad. Se puede desactivar con `GEOCODER=off`.
+
 ## Promociones y suscriptores
 
 En **Panel → Promociones** se crea una promoción con título, texto, etiqueta (ej. "20% OFF"), imagen y vigencia (desde/hasta):
@@ -134,6 +146,8 @@ src/purchases.js     Facturas de compra (lectura, reconocimiento de productos y 
 src/promotions.js    Promociones, descuentos, suscriptores y envío de emails
 src/claims.js        Código de llegada, reclamos y botón de arrepentimiento
 src/rules.js         Zonas de envío y precio mínimo (costo de la página)
-public/              Tienda (index.html), seguimiento (pedido.html), reclamos (reclamo.html), panel (admin.html)
+src/delivery.js      Reparto: etiquetas con QR, escaneo, entregas y PIN del repartidor
+src/geo.js           Ubicación de direcciones y recorrido recomendado
+public/              Tienda (index.html), seguimiento (pedido.html), reclamos (reclamo.html), reparto (reparto.html), panel (admin.html)
 scripts/seed.js      Datos de ejemplo
 ```

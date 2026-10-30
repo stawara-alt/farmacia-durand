@@ -6,7 +6,7 @@ const minPriceFor = (total) => (total + PC.fixed_per_unit) / Math.max(0.05, 1 - 
 const pageCostFor = (price) => PC.fixed_per_unit + (price * PC.fee_pct) / 100;
 const charts = [];
 const SERIES = ['#2a78d6', '#eb6834', '#1baf7a']; // paleta categórica validada (orden fijo)
-const TABS = { resumen: 'Resumen', lanzamiento: 'Puesta en marcha', pedidos: 'Pedidos', productos: 'Productos y stock', compras: 'Facturas de compra', promos: 'Promociones', reclamos: 'Reclamos', costos: 'Costos y márgenes', estadisticas: 'Estadísticas', importar: 'Importar productos', mensajes: 'Mensajes', config: 'Configuración' };
+const TABS = { resumen: 'Resumen', lanzamiento: 'Puesta en marcha', pedidos: 'Pedidos', reparto: 'Reparto', productos: 'Productos y stock', compras: 'Facturas de compra', promos: 'Promociones', reclamos: 'Reclamos', costos: 'Costos y márgenes', estadisticas: 'Estadísticas', importar: 'Importar productos', mensajes: 'Mensajes', config: 'Configuración' };
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const fmtMonth = (m) => { const [y, mo] = m.split('-'); return `${MONTHS[+mo - 1]} ${y.slice(2)}`; };
 const fmtDate = (d) => new Date(d.replace(' ', 'T')).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' });
@@ -167,10 +167,14 @@ async function openOrder(id) {
       <div class="panel" style="box-shadow:none;border:1px solid var(--line)"><b>Cliente</b><br>${esc(o.customer_name)}<br><a href="mailto:${esc(o.email)}">${esc(o.email)}</a><br>
         ${o.phone ? `<a href="https://wa.me/${o.phone.replace(/\D/g, '')}" target="_blank">${esc(o.phone)}</a>` : ''}</div>
       <div class="panel" style="box-shadow:none;border:1px solid var(--line)"><b>${o.delivery_method === 'envio' ? '🚚 Envío a domicilio' : '🏪 Retiro en local'}</b>${o.shipping_zone ? ` <span class="st st-aceptado">${esc(o.shipping_zone)}</span>` : ''}<br>${esc(o.address)}${o.city ? ', ' + esc(o.city) : ''}<br>
+        ${o.delivery_method === 'envio' ? `<b>${esc(DELIVERY_PREFS[o.delivery_pref] || DELIVERY_PREFS.mano)}</b><br>` : ''}
+        ${o.driver ? `<span class="muted">Repartidor: ${esc(o.driver)}</span><br>` : ''}
         <b>Pago:</b> ${o.payment_method === 'qr' ? 'QR' : 'Transferencia'}<br>
-        ${o.receipt ? `<a href="/api/admin/receipts/${esc(o.receipt)}" target="_blank" class="btn btn-ghost btn-sm" style="margin-top:6px">📎 Ver comprobante</a>` : '<span class="muted">Sin comprobante aún</span>'}</div>
+        ${o.receipt ? `<a href="/api/admin/receipts/${esc(o.receipt)}" target="_blank" class="btn btn-ghost btn-sm" style="margin-top:6px">📎 Ver comprobante</a>` : '<span class="muted">Sin comprobante aún</span>'}
+        ${o.delivery_method === 'envio' ? `<a href="/api/admin/labels?ids=${o.id}" target="_blank" class="btn btn-ghost btn-sm" style="margin-top:6px">🏷️ Imprimir etiqueta</a>` : ''}</div>
     </div>
     ${o.notes ? `<div class="help" style="margin-bottom:12px"><b>Nota del cliente:</b> ${esc(o.notes)}</div>` : ''}
+    ${o.delivery_note ? `<div class="help" style="margin-bottom:12px"><b>Nota del reparto:</b> ${esc(o.delivery_note)}</div>` : ''}
     ${o.arrival_code ? `<div class="help" style="margin-bottom:12px">📬 Entregado el ${fmtDate(o.delivered_at)} · código de llegada <b style="letter-spacing:2px">${esc(o.arrival_code)}</b></div>` : ''}
     ${o.claims.length ? `<div class="error-box" style="font-weight:600">⚠️ Reclamos: ${o.claims.map((c) => `<a href="#reclamos" data-claim="${c.id}">#${c.id} ${esc(c.type_label)} (${esc(c.status_label)})</a>`).join(' · ')}</div>` : ''}
     <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Producto</th><th class="num">Cant.</th><th class="num">Precio</th><th class="num">Costo total</th><th class="num">Subtotal</th></tr></thead><tbody>
@@ -185,7 +189,7 @@ async function openOrder(id) {
 
     <div class="panel" style="box-shadow:none;border:2px solid var(--primary);margin-top:16px">
       <h3>Actualizar estado</h3>
-      <div class="filters">${[...flow, 'rechazado', 'cancelado'].map((s) => `<label class="chip-f" style="display:flex;gap:6px"><input type="radio" name="st" value="${s}" ${s === o.status ? 'checked' : ''}>${STATUS_LABELS[s]}</label>`).join('')}</div>
+      <div class="filters">${[...flow, ...(o.delivery_method === 'envio' ? ['no_entregado'] : []), 'rechazado', 'cancelado'].map((s) => `<label class="chip-f" style="display:flex;gap:6px"><input type="radio" name="st" value="${s}" ${s === o.status ? 'checked' : ''}>${STATUS_LABELS[s]}</label>`).join('')}</div>
       <div class="field"><label>Mensaje para el cliente (opcional)</label><textarea id="st-note" style="min-height:60px" placeholder="Ej: Tu pedido sale hoy entre las 16 y 18 hs."></textarea></div>
       <label style="display:flex;gap:8px;align-items:center;margin-bottom:12px;font-weight:700"><input type="checkbox" id="st-notify" checked> Avisar al cliente por email</label>
       <p class="muted" style="margin-top:-4px;font-size:.88rem">Al marcarlo como <b>Entregado</b>, el cliente recibe el email "Tu pedido llegó" con su <b>código de llegada</b>, el link para reclamar y tu WhatsApp.</p>
@@ -205,6 +209,59 @@ async function openOrder(id) {
     } catch (e) { toast(e.message); }
   };
 }
+
+// ---------- reparto ----------
+VIEWS.reparto = async () => {
+  const R = await api('/api/admin/reparto');
+  const row = (o, extra = '') => `<tr class="click" data-order="${o.id}"><td><b>${o.id}</b></td><td>${esc(o.customer_name)}</td>
+    <td>${esc(o.address)}<br><small class="muted">${esc(o.city)}${o.shipping_zone ? ` · ${esc(o.shipping_zone)}` : ''}</small></td>
+    <td><small>${esc(DELIVERY_PREFS[o.delivery_pref] || DELIVERY_PREFS.mano)}</small></td><td>${extra}</td></tr>`;
+  const table = (list, extra, empty) => list.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>#</th><th>Cliente</th><th>Dirección</th><th>Entrega</th><th></th></tr></thead>
+    <tbody>${list.map((o) => row(o, extra(o))).join('')}</tbody></table></div>` : `<p class="muted">${empty}</p>`;
+  $('#view').innerHTML = `<div class="page-head"><h1>Reparto</h1>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-primary btn-sm" href="/api/admin/labels?ready=1" target="_blank">🏷️ Imprimir etiquetas (${R.ready.length})</a></div></div>
+    <div class="kpis">
+      <div class="kpi"><div class="lbl">Listos para salir</div><div class="val">${R.ready.length}</div><div class="sub">aceptados / en preparación</div></div>
+      <div class="kpi"><div class="lbl">En camino</div><div class="val">${R.on_route.length}</div><div class="sub">con el repartidor</div></div>
+      <div class="kpi"><div class="lbl">No entregados</div><div class="val ${R.failed.length ? 'low' : ''}">${R.failed.length}</div><div class="sub">para reprogramar</div></div>
+      <div class="kpi"><div class="lbl">Entregados hoy</div><div class="val">${R.delivered_today.length}</div><div class="sub">con código de llegada</div></div>
+    </div>
+    <div class="panels-2">
+      <div class="panel"><h3>📱 Cómo funciona</h3>
+        <ol style="padding-left:20px;line-height:1.6;margin:0">
+          <li>Al preparar un pedido, imprimí su <b>etiqueta</b> (tiene un QR) y pegala en el paquete.</li>
+          <li>El repartidor abre <b>${esc(R.url)}</b> en su celular y entra con su nombre y el PIN.</li>
+          <li>Escanea cada etiqueta: el pedido pasa a <b>En camino</b> y al cliente le llega el email.</li>
+          <li>La página le muestra cuántos pedidos tiene, las direcciones en el <b>orden recomendado</b> y el recorrido en Google Maps.</li>
+          <li>Al entregar toca <b>Entregado</b> (en mano, al portero o en la puerta) y el cliente recibe su código de llegada. Si no pudo, toca <b>No pude entregar</b> con el motivo.</li>
+        </ol></div>
+      <div class="panel" style="text-align:center"><h3>Página del repartidor</h3>
+        <img src="/api/admin/reparto/qr.png" alt="QR de la página de reparto" style="width:160px;height:160px">
+        <p style="margin:6px 0"><a href="/reparto" target="_blank">${esc(R.url)}</a></p>
+        <form id="pin-form" style="display:flex;gap:8px;justify-content:center;align-items:end;flex-wrap:wrap">
+          <div class="field" style="margin:0"><label>PIN del repartidor</label><input name="pin" value="${esc(R.pin)}" inputmode="numeric" pattern="\d{4,8}" style="width:140px;letter-spacing:3px;font-weight:800;text-align:center"></div>
+          <button class="btn btn-ghost btn-sm">Cambiar PIN</button></form>
+        <p class="muted" style="font-size:.85rem">Al cambiarlo, los repartidores tienen que volver a entrar.</p></div>
+    </div>
+    <div class="panel"><h3>🛵 En camino</h3>${table(R.on_route, (o) => `<small>${esc(o.driver || '')}${o.out_at ? ` · salió ${fmtDate(o.out_at)}` : ''}</small>`, 'Ningún pedido en la calle.')}</div>
+    <div class="panel"><h3>📭 No entregados</h3>${table(R.failed, (o) => `<small class="muted">${esc(o.delivery_note || '')}</small><br><button class="btn btn-ghost btn-sm" data-retry="${o.id}">Volver a preparación</button>`, 'Sin pedidos pendientes de reprogramar 🎉')}</div>
+    <div class="panel"><h3>📦 Listos para salir</h3>${table(R.ready, (o) => `${stBadge(o.status)} <a class="btn btn-ghost btn-sm" href="/api/admin/labels?ids=${o.id}" target="_blank" data-stop>🏷️</a>`, 'No hay pedidos esperando salir.')}</div>
+    <div class="panel"><h3>✅ Entregados hoy</h3>${table(R.delivered_today, (o) => `<small class="muted">${esc(o.delivery_note || '')}</small>`, 'Todavía no hay entregas hoy.')}</div>`;
+  bindOrderRows();
+  $$('[data-stop]').forEach((a) => a.addEventListener('click', (e) => e.stopPropagation()));
+  $$('[data-retry]').forEach((b) => (b.onclick = async (e) => {
+    e.stopPropagation();
+    try {
+      await api(`/api/admin/orders/${b.dataset.retry}/status`, { method: 'PATCH', body: { status: 'en_preparacion', note: 'Lo volvemos a enviar en el próximo recorrido.', notify: true } });
+      toast(`Pedido #${b.dataset.retry} vuelve a preparación`); route();
+    } catch (err) { toast(err.message); }
+  }));
+  $('#pin-form').onsubmit = async (e) => {
+    e.preventDefault();
+    try { const r = await api('/api/admin/reparto/pin', { method: 'PUT', body: { pin: e.target.pin.value.trim() } }); toast(`PIN nuevo: ${r.pin}`); }
+    catch (err) { toast(err.message); }
+  };
+};
 
 // ---------- productos ----------
 VIEWS.productos = async () => {

@@ -96,7 +96,10 @@ function logoHTML(s) {
   return `<span class="logo"><img src="${esc(s.logo || '/img/logo-durand.png')}" alt=""></span>${wordmarkHTML(s)}`;
 }
 
+// cómo quiere recibir el pedido el cliente
+const DELIVERY_PREFS = { mano: '🤝 Entregar en mano', portero: '🛎️ Dejar al portero / encargado', puerta: '🚪 Dejar en la puerta' };
+
 const STATUS_LABELS = {
   pendiente: 'Pendiente', aceptado: 'Aceptado', en_preparacion: 'En preparación', en_envio: 'En envío',
-  listo_retiro: 'Listo para retirar', entregado: 'Entregado', rechazado: 'Rechazado', cancelado: 'Cancelado',
+  listo_retiro: 'Listo para retirar', no_entregado: 'No entregado', entregado: 'Entregado', rechazado: 'Rechazado', cancelado: 'Cancelado',
 };
