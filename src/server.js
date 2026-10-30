@@ -414,6 +414,36 @@ admin.post('/upload', imageUpload.array('images', 10), (req, res) => {
   res.json({ urls: (req.files || []).map((f) => '/uploads/' + f.filename) });
 });
 
+// descarga una imagen desde un link (ej. copiado de Google Imágenes) y la guarda en la tienda,
+// así no depende de que la otra página la siga teniendo
+const IMG_EXT = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif', 'image/avif': '.avif' };
+admin.post('/upload-url', async (req, res) => {
+  const raw = String((req.body || {}).url || '').trim();
+  const m = raw.match(/^data:(image\/[a-z+]+);base64,(.+)$/i);
+  let buf, type;
+  if (m) { type = m[1].toLowerCase(); buf = Buffer.from(m[2], 'base64'); }
+  else {
+    let u;
+    try { u = new URL(raw); } catch { return res.status(400).json({ error: 'Ese link no es válido' }); }
+    if (!/^https?:$/.test(u.protocol) || /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[)/.test(u.hostname)) return res.status(400).json({ error: 'Ese link no es válido' });
+    // links de Google Imágenes que envuelven la imagen real (imgurl=...)
+    const inner = u.searchParams.get('imgurl') || u.searchParams.get('mediaurl');
+    if (inner) { try { u = new URL(inner); } catch {} }
+    try {
+      const r = await fetch(u, { headers: { 'User-Agent': 'Mozilla/5.0 (FarmaciaDurand)', Accept: 'image/*' }, signal: AbortSignal.timeout(15000), redirect: 'follow' });
+      type = (r.headers.get('content-type') || '').split(';')[0].toLowerCase();
+      if (!r.ok || !IMG_EXT[type]) return res.status(400).json({ error: 'Ese link no es una imagen. En Google Imágenes abrí la foto, tocá con el botón derecho → "Copiar dirección de imagen".' });
+      buf = Buffer.from(await r.arrayBuffer());
+    } catch { return res.status(400).json({ error: 'No se pudo descargar la imagen de ese link' }); }
+  }
+  if (!IMG_EXT[type]) return res.status(400).json({ error: 'Formato de imagen no soportado' });
+  if (buf.length > 8 * 1024 * 1024) return res.status(400).json({ error: 'La imagen pesa más de 8 MB' });
+  if (buf.length < 200) return res.status(400).json({ error: 'La imagen está vacía' });
+  const name = crypto.randomBytes(10).toString('hex') + IMG_EXT[type];
+  fs.writeFileSync(path.join(UPLOADS, name), buf);
+  res.json({ url: '/uploads/' + name });
+});
+
 // ----- importación -----
 admin.post('/import/mercadolibre', async (req, res) => {
   const s = getSettings();

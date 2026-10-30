@@ -42,7 +42,7 @@ Opcional: `npm run seed` carga 17 productos y un año de ventas de ejemplo para 
 ### Panel de administración
 - **Resumen**: pedidos por confirmar, en curso, ventas del mes, stock bajo y mensajes.
 - **Pedidos**: filtros por estado, detalle con cliente, comprobante, ganancia del pedido y cambio de estado (con aviso por email). Si se cancela o rechaza, el stock vuelve solo.
-- **Productos y stock**: alta/edición con varias fotos, categoría, marca, SKU, stock (+/−), destacado, oculto y bajo receta.
+- **Productos y stock**: alta/edición con varias fotos (botón **Buscar en Google Imágenes** con el nombre del producto; la foto se agrega pegándola con Ctrl+V, arrastrándola o pegando su link, y se guarda en la tienda; filtro *Solo sin foto*), categoría, marca, SKU, stock (+/−), destacado, oculto y bajo receta.
 - **Costos y márgenes**: por producto se ve costo, costo de envío, IVA (%) y en $, **costo total con IVA**, precio, ganancia, margen y markup. También el stock valorizado y una calculadora de precio sugerido.
   *Costo total = (costo + envío por unidad) × (1 + IVA)*
 - **Estadísticas** (3/6/12/24 meses): ventas, costo y ganancia, pedidos, unidades, ticket promedio, stock al cierre de cada mes (en unidades y valorizado), ventas por categoría, más vendidos, y evolución de **precio, ventas y stock** de cada producto.

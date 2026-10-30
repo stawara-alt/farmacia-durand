@@ -264,6 +264,8 @@ VIEWS.reparto = async () => {
 };
 
 // ---------- productos ----------
+// búsqueda en Google Imágenes con el nombre (y la marca) del producto
+const imgSearch = (p) => `https://www.google.com/search?tbm=isch&q=${encodeURIComponent([p.name, p.brand && !p.name.toLowerCase().includes(p.brand.toLowerCase()) ? p.brand : ''].filter(Boolean).join(' '))}`;
 VIEWS.productos = async () => {
   PRODUCTS = await api('/api/admin/products');
   const cats = [...new Set(PRODUCTS.map((p) => p.category))].sort();
@@ -272,14 +274,16 @@ VIEWS.productos = async () => {
     <div class="filters"><input type="search" id="p-q" placeholder="Buscar producto…">
       <select id="p-cat" style="max-width:220px"><option value="">Todas las categorías</option>${cats.map((c) => `<option>${esc(c)}</option>`).join('')}</select>
       <label class="chip-f" style="display:flex;gap:6px"><input type="checkbox" id="p-low"> Solo stock bajo</label>
+      <label class="chip-f" style="display:flex;gap:6px"><input type="checkbox" id="p-nophoto"> Solo sin foto (<span id="p-nophoto-n"></span>)</label>
       <span class="muted" id="p-count"></span></div>
     <div class="panel"><div class="tbl-wrap"><table class="tbl"><thead><tr><th></th><th>Producto</th><th>Categoría</th><th class="num">Precio</th><th class="num">Stock</th><th>Estado</th><th></th></tr></thead><tbody id="p-body"></tbody></table></div></div>`;
   const render = () => {
-    const q = $('#p-q').value.toLowerCase(), c = $('#p-cat').value, low = $('#p-low').checked;
-    const list = PRODUCTS.filter((p) => (!q || `${p.name} ${p.brand} ${p.sku}`.toLowerCase().includes(q)) && (!c || p.category === c) && (!low || p.stock <= 3));
+    const q = $('#p-q').value.toLowerCase(), c = $('#p-cat').value, low = $('#p-low').checked, nophoto = $('#p-nophoto').checked;
+    const list = PRODUCTS.filter((p) => (!q || `${p.name} ${p.brand} ${p.sku}`.toLowerCase().includes(q)) && (!c || p.category === c) && (!low || p.stock <= 3) && (!nophoto || !p.images.length));
+    $('#p-nophoto-n').textContent = PRODUCTS.filter((p) => !p.images.length).length;
     $('#p-count').textContent = `${list.length} productos`;
     $('#p-body').innerHTML = list.map((p) => `<tr>
-      <td><img class="mini" src="${esc(p.images[0] || PLACEHOLDER)}" alt="" onerror="this.src=PLACEHOLDER"></td>
+      <td><img class="mini" src="${esc(p.images[0] || PLACEHOLDER)}" alt="" onerror="this.src=PLACEHOLDER">${p.images.length ? '' : `<br><a href="${imgSearch(p)}" target="_blank" rel="noopener" style="font-size:.75rem;white-space:nowrap">🔍 buscar foto</a>`}</td>
       <td><b>${esc(p.name)}</b><br><small class="muted">${[p.brand && esc(p.brand), p.sku && esc(p.sku), p.ml_id && 'ML ' + esc(p.ml_id)].filter(Boolean).join(' · ')}</small></td>
       <td>${esc(p.category)}</td><td class="num">${money(p.price)}</td>
       <td class="num"><div class="qty"><button data-sd="${p.id}" aria-label="Restar">−</button><span class="${p.stock <= 3 ? 'low' : ''}">${p.stock}</span><button data-si="${p.id}" aria-label="Sumar">+</button></div></td>
@@ -294,7 +298,7 @@ VIEWS.productos = async () => {
     $$('[data-si]').forEach((b) => (b.onclick = () => adj(b.dataset.si, 1)));
     $$('[data-sd]').forEach((b) => (b.onclick = () => adj(b.dataset.sd, -1)));
   };
-  $('#p-q').oninput = render; $('#p-cat').onchange = render; $('#p-low').onchange = render;
+  $('#p-q').oninput = render; $('#p-cat').onchange = render; $('#p-low').onchange = render; $('#p-nophoto').onchange = render;
   $('#p-new').onclick = () => productForm(null);
   render();
 };
@@ -337,7 +341,11 @@ function productForm(p) {
   const renderImgs = () => {
     $('#imgs').innerHTML = images.map((u, i) => `<div class="im"><img src="${esc(u)}" alt="">${i === 0 ? '<span class="first">Principal</span>' : `<span class="first" style="background:#5b6b66;cursor:pointer" data-main="${i}">Hacer principal</span>`}<button type="button" data-rmimg="${i}">×</button></div>`).join('')
       + `<label class="img-add" title="Subir fotos">+<input type="file" accept="image/*" multiple hidden id="img-in"></label>
-         <button type="button" class="btn btn-light btn-sm" id="img-url">+ desde URL</button>`;
+         <div style="display:grid;gap:6px;align-content:start">
+           <a class="btn btn-ghost btn-sm" id="img-search" target="_blank" rel="noopener">🔍 Buscar en Google Imágenes</a>
+           <button type="button" class="btn btn-light btn-sm" id="img-url">🔗 Pegar link de la imagen</button>
+           <small class="muted" style="max-width:240px">En Google: clic derecho en la foto → <b>Copiar imagen</b> y apretá Ctrl+V acá, o <b>Copiar dirección de imagen</b> y usá "Pegar link". También podés arrastrarla.</small>
+         </div>`;
     $$('[data-rmimg]').forEach((b) => (b.onclick = () => { images.splice(+b.dataset.rmimg, 1); renderImgs(); }));
     $$('[data-main]').forEach((b) => (b.onclick = () => { const [x] = images.splice(+b.dataset.main, 1); images.unshift(x); renderImgs(); }));
     $('#img-in').onchange = async (e) => {
@@ -345,8 +353,39 @@ function productForm(p) {
       [...e.target.files].forEach((file) => fd.append('images', file));
       try { const r = await api('/api/admin/upload', { method: 'POST', body: fd }); images.push(...r.urls); renderImgs(); } catch (err) { toast(err.message); }
     };
-    $('#img-url').onclick = () => { const u = prompt('Pegá la URL de la imagen'); if (u) { images.push(u.trim()); renderImgs(); } };
+    $('#img-search').href = imgSearch({ name: f.name.value || p.name, brand: f.brand.value || p.brand });
+    $('#img-url').onclick = () => { const u = prompt('Pegá el link de la imagen'); if (u) addFromUrl(u.trim()); };
   };
+  const addFromUrl = async (url) => {
+    toast('Descargando imagen…');
+    try { const r = await api('/api/admin/upload-url', { method: 'POST', body: { url } }); images.push(r.url); renderImgs(); toast('Foto agregada ✓'); }
+    catch (err) { toast(err.message); }
+  };
+  const addFiles = async (files) => {
+    const fd = new FormData();
+    files.filter((x) => /^image\//.test(x.type)).forEach((x) => fd.append('images', x, x.name || 'foto.png'));
+    if (!fd.has('images')) return false;
+    try { const r = await api('/api/admin/upload', { method: 'POST', body: fd }); images.push(...r.urls); renderImgs(); toast('Foto agregada ✓'); } catch (err) { toast(err.message); }
+    return true;
+  };
+  // pegar (Ctrl+V) una imagen copiada, o un link de imagen
+  f.addEventListener('paste', async (e) => {
+    const files = [...(e.clipboardData?.files || [])];
+    if (files.length && (await addFiles(files))) { e.preventDefault(); return; }
+    const txt = e.clipboardData?.getData('text') || '';
+    if (/^(https?:\/\/|data:image\/)/i.test(txt.trim()) && !/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) { e.preventDefault(); addFromUrl(txt.trim()); }
+  });
+  // arrastrar una foto (desde la compu o desde otra pestaña del navegador)
+  f.addEventListener('dragover', (e) => { if (e.target.closest('#imgs')) e.preventDefault(); });
+  f.addEventListener('drop', async (e) => {
+    if (!e.target.closest('#imgs')) return;
+    e.preventDefault();
+    const files = [...(e.dataTransfer?.files || [])];
+    if (files.length && (await addFiles(files))) return;
+    const html = e.dataTransfer?.getData('text/html') || '', src = (html.match(/<img[^>]+src="([^"]+)"/i) || [])[1];
+    const url = src || e.dataTransfer?.getData('text/uri-list') || e.dataTransfer?.getData('text');
+    if (url) addFromUrl(url.replace(/&amp;/g, '&').trim());
+  });
   const calc = () => {
     const price = +f.price.value || 0, cost = +f.cost.value || 0, ship = +f.shipping_cost.value || 0, iva = +f.iva_rate.value || 0;
     const ivaAmt = (cost + ship) * iva / 100, total = cost + ship + ivaAmt, page = pageCostFor(price), margin = price - total - page, min = minPriceFor(total);
